@@ -95,11 +95,20 @@
       "category": "public.app-category.business"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "extraResources": [
+        {
+          "from": "node_modules/sqlite3/lib/binding/napi-v6-win32-x64",
+          "to": "app/node_modules/sqlite3/lib/binding/napi-v6-win32-x64",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "linux": {
       "target": "AppImage"
     },
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
     "publish": {
       "provider": "github",
       "owner": "iowsla",
