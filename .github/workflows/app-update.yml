@@ -1,0 +1,54 @@
+name: Auto Update
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  update-app:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Generate update metadata
+        run: |
+          echo "{
+            \"version\": \"${{ github.event.release.tag_name }}\",
+            \"releaseDate\": \"${{ github.event.release.published_at }}\",
+            \"releaseName\": \"${{ github.event.release.name }}\",
+            \"releaseNotes\": \"${{ github.event.release.body }}\",
+            \"platforms\": {
+              \"darwin\": {
+                \"url\": \"${{ github.event.release.assets[0].browser_download_url }}\"
+              },
+              \"win32\": {
+                \"url\": \"${{ github.event.release.assets[1].browser_download_url }}\"
+              },
+              \"linux\": {
+                \"url\": \"${{ github.event.release.assets[2].browser_download_url }}\"
+              }
+            }
+          }" > update-info.json
+          
+      - name: Upload update metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-metadata
+          path: update-info.json
+          
+      - name: Notify update available
+        run: |
+          echo "New version ${{ github.event.release.tag_name }} is available!"
+          echo "Release notes: ${{ github.event.release.body }}"

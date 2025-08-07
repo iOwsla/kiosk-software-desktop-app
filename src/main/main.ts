@@ -1,0 +1,400 @@
+import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const packageJson = require('../../package.json');
+import { APIServer } from '../../api/server';
+import { IPC_CHANNELS } from '../../shared/types';
+import { LicenseManager } from './services/LicenseManager';
+import { WindowManager } from './services/WindowManager';
+import { PortManager } from './services/PortManager';
+import { UpdateManager } from './services/UpdateManager';
+import { logger } from '../../api/utils/logger';
+
+class KioskApp {
+  private apiServer: APIServer;
+  private licenseManager: LicenseManager;
+  private windowManager: WindowManager;
+  private portManager: PortManager;
+  private updateManager: UpdateManager;
+  private isDev: boolean;
+
+  constructor() {
+    this.isDev = process.env.NODE_ENV === 'development';
+    this.apiServer = new APIServer(3001);
+    this.licenseManager = new LicenseManager();
+    this.windowManager = new WindowManager(this.isDev);
+    this.portManager = PortManager.getInstance();
+    this.updateManager = UpdateManager.getInstance();
+
+    this.setupApp();
+    this.setupIPC();
+  }
+
+  private setupApp(): void {
+    // App event handlers
+    app.whenReady().then(() => {
+      this.initialize();
+    });
+
+    app.on('window-all-closed', () => {
+      if (process.platform !== 'darwin') {
+        this.shutdown();
+      }
+    });
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        this.initialize();
+      }
+    });
+
+    // Security: Prevent new window creation
+    app.on('web-contents-created', (event, contents) => {
+      contents.setWindowOpenHandler(({ url }) => {
+        logger.warn('Blocked new window creation', { url });
+        return { action: 'deny' };
+      });
+    });
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      logger.info('Initializing Kiosk Application');
+
+      // Start port monitoring
+      this.portManager.startPortMonitoring();
+      
+      // Start auto update checking (every 60 minutes)
+      this.updateManager.startAutoUpdateCheck(60);
+
+      // Start API server
+      await this.apiServer.start();
+
+      // Remove menu in production
+      if (!this.isDev) {
+        Menu.setApplicationMenu(null);
+      }
+
+      // Check license status and show appropriate window
+      const hasValidLicense = await this.licenseManager.checkInitialLicense();
+      
+      if (hasValidLicense) {
+        this.windowManager.showKioskWindow();
+        // Start background license verification
+        this.licenseManager.startBackgroundVerification();
+      } else {
+        this.windowManager.showLicenseInputWindow();
+      }
+
+      logger.info('Kiosk Application initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize application', { error });
+      app.quit();
+    }
+  }
+
+  private setupIPC(): void {
+    // License verification
+    ipcMain.handle(IPC_CHANNELS.LICENSE_VERIFY, async (event, apiKey: string) => {
+      try {
+        const result = await this.licenseManager.verifyLicense(apiKey);
+        if (result.valid) {
+          // Switch to kiosk window on successful verification
+          this.windowManager.showKioskWindow();
+          this.licenseManager.startBackgroundVerification();
+        }
+        return result;
+      } catch (error) {
+        logger.error('IPC License verification failed', { error });
+        return { valid: false, message: 'Verification failed' };
+      }
+    });
+
+    // Get license status
+    ipcMain.handle(IPC_CHANNELS.LICENSE_STATUS, async () => {
+      try {
+        return await this.licenseManager.getLicenseStatus();
+      } catch (error) {
+        logger.error('IPC License status check failed', { error });
+        return { valid: false, message: 'Status check failed' };
+      }
+    });
+
+    // Save API key
+    ipcMain.handle(IPC_CHANNELS.LICENSE_SAVE_KEY, async (event, apiKey: string) => {
+      try {
+        await this.licenseManager.saveApiKey(apiKey);
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Save API key failed', { error });
+        return { success: false, message: 'Failed to save API key' };
+      }
+    });
+
+    // Get saved API key
+    ipcMain.handle(IPC_CHANNELS.LICENSE_GET_KEY, async () => {
+      try {
+        return await this.licenseManager.getSavedApiKey();
+      } catch (error) {
+        logger.error('IPC Get API key failed', { error });
+        return null;
+      }
+    });
+
+    // Window controls
+    ipcMain.handle(IPC_CHANNELS.WINDOW_SHOW_KIOSK, () => {
+      this.windowManager.showKioskWindow();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.WINDOW_SHOW_LICENSE_INPUT, () => {
+      this.windowManager.showLicenseInputWindow();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.WINDOW_SHOW_LICENSE_RENEWAL, () => {
+      this.windowManager.showLicenseRenewalWindow();
+    });
+
+    // App controls
+    ipcMain.handle(IPC_CHANNELS.APP_QUIT, () => {
+      this.shutdown();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.APP_MINIMIZE, () => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (focusedWindow) {
+        focusedWindow.minimize();
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.APP_MAXIMIZE, () => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (focusedWindow) {
+        if (focusedWindow.isMaximized()) {
+          focusedWindow.unmaximize();
+        } else {
+          focusedWindow.maximize();
+        }
+      }
+    });
+
+    // Port management IPC handlers
+    ipcMain.handle(IPC_CHANNELS.PORT_GET_STATUS, async () => {
+      try {
+        const currentPort = this.portManager.getCurrentPort();
+        const isAvailable = await this.portManager.isPortAvailable(currentPort);
+        return {
+          port: currentPort,
+          isAvailable,
+          isInUse: !isAvailable
+        };
+      } catch (error) {
+        logger.error('IPC Port status check failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PORT_CHECK, async (event, port: number) => {
+      try {
+        const isAvailable = await this.portManager.isPortAvailable(port);
+        return {
+          port,
+          isAvailable,
+          isInUse: !isAvailable
+        };
+      } catch (error) {
+        logger.error('IPC Port check failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PORT_FIND_AVAILABLE, async (event, startPort: number = 3000) => {
+      try {
+        const availablePort = await this.portManager.findAvailablePort(startPort);
+        return availablePort;
+      } catch (error) {
+        logger.error('IPC Find available port failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PORT_SCAN_RANGE, async (event, startPort: number, endPort: number) => {
+      try {
+        const results = await this.portManager.scanPortRange(startPort, endPort);
+        return {
+          startPort,
+          endPort,
+          results,
+          totalScanned: results.length,
+          availablePorts: results.filter(r => r.isAvailable).map(r => r.port),
+          usedPorts: results.filter(r => r.isInUse).map(r => r.port)
+        };
+      } catch (error) {
+        logger.error('IPC Port scan failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PORT_RESOLVE_CONFLICT, async () => {
+      try {
+        return await this.portManager.checkAndResolvePortConflict();
+      } catch (error) {
+        logger.error('IPC Port conflict resolution failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PORT_SET_CURRENT, async (event, port: number) => {
+      try {
+        const isAvailable = await this.portManager.isPortAvailable(port);
+        if (!isAvailable) {
+          throw new Error('Port is not available');
+        }
+        this.portManager.setCurrentPort(port);
+        return { success: true, port };
+      } catch (error) {
+        logger.error('IPC Set current port failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PORT_START_MONITORING, () => {
+      try {
+        this.portManager.startPortMonitoring();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Start port monitoring failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PORT_STOP_MONITORING, () => {
+      try {
+        this.portManager.stopPortMonitoring();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Stop port monitoring failed', { error });
+        throw error;
+      }
+    });
+
+    // Update management IPC handlers
+    ipcMain.handle(IPC_CHANNELS.UPDATE_GET_STATUS, () => {
+      try {
+        return this.updateManager.getStatus();
+      } catch (error) {
+        logger.error('IPC Get update status failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async () => {
+      try {
+        return await this.updateManager.checkForUpdates();
+      } catch (error) {
+        logger.error('IPC Check for updates failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
+      try {
+        await this.updateManager.downloadUpdate();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Download update failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL, async () => {
+      try {
+        await this.updateManager.installUpdate();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Install update failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_START_AUTO_CHECK, (event, intervalMinutes: number = 60) => {
+      try {
+        this.updateManager.startAutoUpdateCheck(intervalMinutes);
+        return { success: true, intervalMinutes };
+      } catch (error) {
+        logger.error('IPC Start auto update check failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_STOP_AUTO_CHECK, () => {
+      try {
+        this.updateManager.stopAutoUpdateCheck();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Stop auto update check failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_SET_SETTINGS, (event, settings: { autoDownload?: boolean; autoInstall?: boolean }) => {
+      try {
+        if (typeof settings.autoDownload === 'boolean') {
+          this.updateManager.setAutoDownload(settings.autoDownload);
+        }
+        if (typeof settings.autoInstall === 'boolean') {
+          this.updateManager.setAutoInstall(settings.autoInstall);
+        }
+        return { success: true, settings };
+      } catch (error) {
+        logger.error('IPC Set update settings failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_GET_INFO, () => {
+      try {
+        const status = this.updateManager.getStatus();
+
+        return {
+          currentVersion: packageJson.version,
+          appName: packageJson.name,
+          updateStatus: status,
+          platform: process.platform,
+          arch: process.arch,
+          nodeVersion: process.version
+        };
+      } catch (error) {
+        logger.error('IPC Get update info failed', { error });
+        throw error;
+      }
+    });
+  }
+
+  private async shutdown(): Promise<void> {
+    try {
+      logger.info('Shutting down Kiosk Application');
+      
+      // Stop background verification
+      this.licenseManager.stopBackgroundVerification();
+      
+      // Stop port monitoring
+      this.portManager.cleanup();
+      
+      // Stop update manager
+      this.updateManager.cleanup();
+      
+      // Stop API server
+      await this.apiServer.stop();
+      
+      // Close all windows
+      this.windowManager.closeAllWindows();
+      
+      app.quit();
+    } catch (error) {
+      logger.error('Error during shutdown', { error });
+      app.quit();
+    }
+  }
+}
+
+// Initialize the application
+new KioskApp();
