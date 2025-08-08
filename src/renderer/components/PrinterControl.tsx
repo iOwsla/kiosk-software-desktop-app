@@ -55,13 +55,7 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
   const handleDiscover = async () => {
     setIsLoading(true); setError(null); setSuccess(null);
     try {
-      const found = await window.electronAPI.printer.printJob({} as any); // placeholder to ensure typings load
-    } catch {}
-    try {
-      const found = await (window.electronAPI as any).printer.invoke?.(undefined);
-    } catch {}
-    try {
-      const discovered = await (window.electronAPI as any).printer?.discoverIp?.({ base: discoverBase, start: discoverStart, end: discoverEnd, port });
+      const discovered = await window.electronAPI.printer.discoverIp({ base: discoverBase, start: discoverStart, end: discoverEnd, port });
       if (discovered?.length) {
         setSuccess(`${discovered.length} yazıcı bulundu`);
         await refresh();
