@@ -1,22 +1,19 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater';
 import { BrowserWindow, dialog } from 'electron';
+import { IPC_CHANNELS, UpdateNotification } from '../../../shared/types';
 import { EventEmitter } from 'events';
-
-export interface UpdateStatus {
-  available: boolean;
-  version?: string;
-  releaseDate?: string;
-  downloadProgress?: number;
-  status: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
-  error?: string;
-}
+import type { UpdateStatus } from '../../../shared/types';
 
 export class UpdateManager extends EventEmitter {
   private static instance: UpdateManager;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private currentStatus: UpdateStatus = {
     available: false,
-    status: 'not-available'
+    status: 'not-available',
+    downloading: false,
+    downloaded: false,
+    progress: 0,
+    autoCheckEnabled: false
   };
   private autoDownload: boolean = true;
   private autoInstall: boolean = false;
@@ -49,16 +46,18 @@ export class UpdateManager extends EventEmitter {
     // Event listeners
     autoUpdater.on('checking-for-update', () => {
       console.log('Güncelleme kontrol ediliyor...');
-      this.updateStatus({ status: 'checking' });
+      this.updateStatus({ status: 'checking', lastChecked: new Date().toISOString(), downloading: false });
     });
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
       console.log('Güncelleme mevcut:', info.version);
+      const releaseNotes = typeof info.releaseNotes === 'string' ? info.releaseNotes : undefined;
       this.updateStatus({
         available: true,
         version: info.version,
         releaseDate: info.releaseDate,
-        status: 'available'
+        status: 'available',
+        releaseNotes
       });
     });
 
@@ -67,11 +66,14 @@ export class UpdateManager extends EventEmitter {
       this.updateStatus({
         available: false,
         version: info.version,
-        status: 'not-available'
+        status: 'not-available',
+        downloading: false,
+        downloaded: false,
+        progress: 0
       });
     });
 
-    autoUpdater.on('error', (error) => {
+    autoUpdater.on('error', (error: Error) => {
       console.error('Güncelleme hatası:', error);
       this.updateStatus({
         available: false,
@@ -85,7 +87,10 @@ export class UpdateManager extends EventEmitter {
       console.log(`İndirme ilerlemesi: ${progress}%`);
       this.updateStatus({
         status: 'downloading',
-        downloadProgress: progress
+        downloadProgress: progress,
+        downloading: true,
+        downloaded: false,
+        progress
       });
     });
 
@@ -94,7 +99,10 @@ export class UpdateManager extends EventEmitter {
       this.updateStatus({
         available: true,
         version: info.version,
-        status: 'downloaded'
+        status: 'downloaded',
+        downloading: false,
+        downloaded: true,
+        progress: 100
       });
       
       // Kullanıcıya bildirim göster
@@ -108,9 +116,15 @@ export class UpdateManager extends EventEmitter {
   private updateStatus(newStatus: Partial<UpdateStatus>): void {
     this.currentStatus = { ...this.currentStatus, ...newStatus };
     this.emit('status-changed', this.currentStatus);
-    
-    // Tüm pencereler için güncelleme durumunu bildir
-    this.notifyAllWindows('update-status-changed', this.currentStatus);
+
+    // Tüm pencerelere tiplenmiş güncelleme bildirimi gönder
+    const notification: UpdateNotification = {
+      status: this.currentStatus.status,
+      version: this.currentStatus.version,
+      progress: this.currentStatus.progress ?? this.currentStatus.downloadProgress,
+      error: this.currentStatus.error
+    };
+    this.notifyAllWindows(IPC_CHANNELS.NOTIFICATION_UPDATE_STATUS, notification);
   }
 
   /**
@@ -189,6 +203,7 @@ export class UpdateManager extends EventEmitter {
     }, intervalMinutes * 60 * 1000);
 
     console.log(`Otomatik güncelleme kontrolü başlatıldı (${intervalMinutes} dakika aralıklarla)`);
+    this.updateStatus({ autoCheckEnabled: true });
   }
 
   /**
@@ -200,6 +215,7 @@ export class UpdateManager extends EventEmitter {
       this.updateCheckInterval = null;
       console.log('Otomatik güncelleme kontrolü durduruldu');
     }
+    this.updateStatus({ autoCheckEnabled: false });
   }
 
   /**
@@ -224,7 +240,7 @@ export class UpdateManager extends EventEmitter {
   /**
    * Tüm pencereler için bildirim gönderir
    */
-  private notifyAllWindows(channel: string, data: any): void {
+  private notifyAllWindows(channel: string, data: unknown): void {
     const allWindows = BrowserWindow.getAllWindows();
     allWindows.forEach(window => {
       if (!window.isDestroyed()) {
