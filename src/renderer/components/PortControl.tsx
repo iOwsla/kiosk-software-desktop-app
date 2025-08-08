@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PortStatus, PortScanResult } from '../../../shared/types';
+import { PortStatus } from '../../../shared/types';
 import { AlertMessage } from './AlertMessage';
 import { LoadingSpinner } from './LoadingSpinner';
 

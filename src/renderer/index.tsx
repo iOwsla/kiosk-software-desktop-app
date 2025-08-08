@@ -17,6 +17,6 @@ root.render(
 );
 
 // Hot module replacement for development
-if (process.env.NODE_ENV === 'development' && (module as any).hot) {
-  (module as any).hot.accept();
+if (process.env.NODE_ENV === 'development' && (module as unknown as { hot?: { accept: () => void } }).hot) {
+  (module as unknown as { hot?: { accept: () => void } }).hot!.accept();
 }

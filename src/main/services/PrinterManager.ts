@@ -1,5 +1,4 @@
-import { BrowserWindow } from 'electron';
-import type { IPPrinterConfig, PrinterDevice, PrinterModuleSettings, PrinterProviderType, PrintElement, PrintJobRequest } from '../../../shared/types';
+import type { IPPrinterConfig, PrinterDevice, PrinterModuleSettings, PrintElement, PrintJobRequest } from '../../../shared/types';
 
 interface RegisteredIPPrinter extends IPPrinterConfig {
   id: string;
@@ -95,8 +94,8 @@ export class PrinterManager {
 
   private encodeSimpleTextJob(elements: PrintElement[]): Buffer {
     const lines = elements
-      .filter(e => e.type === 'text')
-      .map(e => (e as any).content || '')
+      .filter((e): e is Extract<PrintElement, { type: 'text' }> => e.type === 'text')
+      .map(e => e.content || '')
       .join('\n');
     return Buffer.from(lines + '\n');
   }

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import { APIServer } from '../../api/server';
-import { IPC_CHANNELS } from '../../shared/types';
+import { IPC_CHANNELS, PRINTER_IPC } from '../../shared/types';
 import { LicenseManager } from './services/LicenseManager';
 import { WindowManager } from './services/WindowManager';
 import { PortManager } from './services/PortManager';
@@ -160,8 +160,6 @@ class KioskApp {
       this.shutdown();
     });
     // Printer IPC
-    const { PRINTER_IPC } = require('../../shared/types');
-
     ipcMain.handle(PRINTER_IPC.GET_SETTINGS, () => this.printerManager.getSettings());
     ipcMain.handle(PRINTER_IPC.SET_SETTINGS, (_e, next) => this.printerManager.setSettings(next));
     ipcMain.handle(PRINTER_IPC.LIST, () => this.printerManager.listPrinters());
