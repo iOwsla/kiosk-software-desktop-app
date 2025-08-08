@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { UpdateManager, UpdateStatus } from '../../src/main/services/UpdateManager';
+import { UpdateManager } from '../../src/main/services/UpdateManager';
+import type { UpdateStatus } from '../../shared/types';
 import { logger } from '../utils/logger';
 
 export class UpdateController {
