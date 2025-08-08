@@ -37,6 +37,11 @@ export class UpdateManager extends EventEmitter {
     // AutoUpdater ayarları
     autoUpdater.autoDownload = this.autoDownload;
     autoUpdater.autoInstallOnAppQuit = this.autoInstall;
+    // GitHub 406/Accept header sorunlarını önlemek için istek başlıklarını ayarla
+    autoUpdater.requestHeaders = {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'User-Agent': `kiosk-app/${process.versions.electron}`
+    };
     
     // Geliştirme ortamında güncelleme sunucusunu devre dışı bırak
     if (process.env.NODE_ENV === 'development') {

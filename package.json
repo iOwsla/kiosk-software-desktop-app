@@ -105,8 +105,9 @@
     "buildDependenciesFromSource": false,
     "publish": {
       "provider": "github",
-      "owner": "iowsla",
-      "repo": "kiosk-software-desktop-app"
+      "owner": "iOwsla",
+      "repo": "kiosk-software-desktop-app",
+      "vPrefixedTagName": true
     }
   }
 }
