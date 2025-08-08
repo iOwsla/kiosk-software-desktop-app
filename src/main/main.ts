@@ -7,6 +7,8 @@ import { PortManager } from './services/PortManager';
 import { UpdateManager } from './services/UpdateManager';
 import { logger } from '../../api/utils/logger';
 
+// test
+
 class KioskApp {
   private apiServer: APIServer;
   private licenseManager: LicenseManager;
