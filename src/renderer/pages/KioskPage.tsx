@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { UpdateControl } from '../components/UpdateControl';
 import { PortControl } from '../components/PortControl';
+import { PrinterControl } from '../components/PrinterControl';
 
 export const KioskPage: React.FC = () => {
   const [licenseStatus, setLicenseStatus] = useState<{
@@ -264,6 +265,12 @@ export const KioskPage: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Güncelleme Yönetimi</h3>
                   <UpdateControl />
+                </div>
+
+                {/* Printer Control */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Yazıcı Yönetimi</h3>
+                  <PrinterControl />
                 </div>
               </div>
             </div>

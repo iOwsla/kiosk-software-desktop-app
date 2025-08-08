@@ -169,6 +169,7 @@ class KioskApp {
     ipcMain.handle(PRINTER_IPC.SET_ACTIVE, (_e, id) => this.printerManager.setActivePrinter(id));
     ipcMain.handle(PRINTER_IPC.PRINT_TEST, (_e, id?) => this.printerManager.printTest(id));
     ipcMain.handle(PRINTER_IPC.PRINT_JOB, (_e, job) => this.printerManager.printJob(job));
+    ipcMain.handle(PRINTER_IPC.DISCOVER_IP, (_e, range) => this.printerManager.discoverIPPrinters(range));
 
     ipcMain.handle(IPC_CHANNELS.APP_MINIMIZE, () => {
       const focusedWindow = BrowserWindow.getFocusedWindow();

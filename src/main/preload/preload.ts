@@ -37,6 +37,7 @@ interface ElectronAPI {
     setActive: (id: string) => Promise<void>;
     printTest: (id?: string) => Promise<{ success: boolean }>;
     printJob: (job: PrintJobRequest) => Promise<{ success: boolean }>;
+    discoverIp: (range: { base: string; start: number; end: number; port?: number }) => Promise<PrinterDevice[]>;
   };
   // Window operations
   window: {
@@ -114,7 +115,8 @@ const electronAPI: ElectronAPI = {
     getActive: () => ipcRenderer.invoke(PRINTER_IPC.GET_ACTIVE),
     setActive: (id: string) => ipcRenderer.invoke(PRINTER_IPC.SET_ACTIVE, id),
     printTest: (id?: string) => ipcRenderer.invoke(PRINTER_IPC.PRINT_TEST, id),
-    printJob: (job: PrintJobRequest) => ipcRenderer.invoke(PRINTER_IPC.PRINT_JOB, job)
+    printJob: (job: PrintJobRequest) => ipcRenderer.invoke(PRINTER_IPC.PRINT_JOB, job),
+    discoverIp: (range: { base: string; start: number; end: number; port?: number }) => ipcRenderer.invoke(PRINTER_IPC.DISCOVER_IP, range)
   },
   
   window: {
@@ -193,20 +195,20 @@ const electronAPI: ElectronAPI = {
   
   on: {
     portChanged: (callback: (data: PortChangeNotification) => void) => {
-      ipcRenderer.on(IPC_CHANNELS.NOTIFICATION_PORT_CHANGED, (_event, data) => callback(data));
+      ipcRenderer.on(IPC_CHANNELS.NOTIFICATION_PORT_CHANGED, (_event: Electron.IpcRendererEvent, data: PortChangeNotification) => callback(data));
     },
     
     updateStatus: (callback: (data: UpdateNotification) => void) => {
-      ipcRenderer.on(IPC_CHANNELS.NOTIFICATION_UPDATE_STATUS, (_event, data) => callback(data));
+      ipcRenderer.on(IPC_CHANNELS.NOTIFICATION_UPDATE_STATUS, (_event: Electron.IpcRendererEvent, data: UpdateNotification) => callback(data));
     }
   },
   
   off: {
-    portChanged: (callback: (data: PortChangeNotification) => void) => {
+    portChanged: (_callback: (data: PortChangeNotification) => void) => {
       ipcRenderer.removeAllListeners(IPC_CHANNELS.NOTIFICATION_PORT_CHANGED);
     },
     
-    updateStatus: (callback: (data: UpdateNotification) => void) => {
+    updateStatus: (_callback: (data: UpdateNotification) => void) => {
       ipcRenderer.removeAllListeners(IPC_CHANNELS.NOTIFICATION_UPDATE_STATUS);
     }
   }

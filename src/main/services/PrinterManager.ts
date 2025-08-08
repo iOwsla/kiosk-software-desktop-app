@@ -1,4 +1,4 @@
-import type { IPPrinterConfig, PrinterDevice, PrinterModuleSettings, PrintElement, PrintJobRequest } from '../../../shared/types';
+import type { IPPrinterConfig, PrinterDevice, PrinterModuleSettings, PrintElement, PrintJobRequest, IPDiscoveryRange } from '../../../shared/types';
 
 interface RegisteredIPPrinter extends IPPrinterConfig {
   id: string;
@@ -62,6 +62,42 @@ export class PrinterManager {
     this.ipPrinters.set(id, { id, ...config, online: true });
     if (!this.activePrinterId) this.activePrinterId = id;
     return device;
+  }
+
+  public async discoverIPPrinters(range: IPDiscoveryRange): Promise<PrinterDevice[]> {
+    if (!this.settings.ipEnabled) {
+      throw new Error('IP yazıcı modu devre dışı');
+    }
+    const port = range.port ?? 9100;
+    const hosts: string[] = [];
+    for (let i = range.start; i <= range.end; i++) hosts.push(`${range.base}.${i}`);
+
+    const net = await import('net');
+    const tryHost = (host: string) => new Promise<PrinterDevice | null>((resolve) => {
+      const socket = new net.Socket();
+      let resolved = false;
+      const done = (result: PrinterDevice | null) => {
+        if (!resolved) {
+          resolved = true;
+          socket.destroy();
+          resolve(result);
+        }
+      };
+      socket.setTimeout(1500);
+      socket.once('error', () => done(null));
+      socket.once('timeout', () => done(null));
+      socket.connect(port, host, () => {
+        const id = `ip:${host}:${port}`;
+        const device: PrinterDevice = { id, name: `IP Printer ${host}:${port}`, provider: 'ip', online: true, details: { ip: host, port } };
+        done(device);
+      });
+    });
+
+    const results = await Promise.all(hosts.map(h => tryHost(h)));
+    const found = results.filter((d): d is PrinterDevice => !!d);
+    // kaydet ve döndür
+    for (const d of found) this.printers.set(d.id, d);
+    return found;
   }
 
   public removePrinter(printerId: string): void {

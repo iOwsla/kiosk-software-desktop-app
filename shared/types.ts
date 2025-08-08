@@ -124,6 +124,13 @@ export interface PrinterModuleSettings {
   usbEnabled: boolean;
 }
 
+export interface IPDiscoveryRange {
+  base: string; // e.g. "192.168.1"
+  start: number; // 1
+  end: number;   // 254
+  port?: number; // default 9100
+}
+
 // Notification Types
 export interface PortChangeNotification {
   oldPort: number;
@@ -202,5 +209,6 @@ export const PRINTER_IPC = {
   PRINT_JOB: 'printer:print-job',
   GET_SETTINGS: 'printer:get-settings',
   SET_SETTINGS: 'printer:set-settings',
-  DISCOVER_USB: 'printer:discover-usb'
+  DISCOVER_USB: 'printer:discover-usb',
+  DISCOVER_IP: 'printer:discover-ip'
 } as const;
