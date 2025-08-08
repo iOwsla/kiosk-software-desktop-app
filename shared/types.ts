@@ -81,6 +81,49 @@ export interface UpdateSettings {
   checkInterval: number; // minutes
 }
 
+// Printer Types
+export type PrinterProviderType = 'ip' | 'usb';
+
+export interface PrinterDevice {
+  id: string;
+  name: string;
+  provider: PrinterProviderType;
+  online: boolean;
+  details?: Record<string, any>;
+}
+
+export interface IPPrinterConfig {
+  ip: string;
+  port: number; // default 9100
+  name?: string;
+}
+
+export interface USBPrinterInfo {
+  name: string;
+  isDefault: boolean;
+  status?: string;
+}
+
+export interface PrintElementText {
+  type: 'text';
+  content: string;
+  align?: 'left' | 'center' | 'right';
+  bold?: boolean;
+  underline?: boolean;
+}
+
+export type PrintElement = PrintElementText; // genişletilebilir: image, barcode, qrcode
+
+export interface PrintJobRequest {
+  printerId: string;
+  elements: PrintElement[];
+}
+
+export interface PrinterModuleSettings {
+  ipEnabled: boolean;
+  usbEnabled: boolean;
+}
+
 // Notification Types
 export interface PortChangeNotification {
   oldPort: number;
@@ -147,3 +190,17 @@ export const IPC_CHANNELS = {
 } as const;
 
 export type IPCChannel = typeof IPC_CHANNELS[keyof typeof IPC_CHANNELS];
+
+// Printer IPC Channels
+export const PRINTER_IPC = {
+  LIST: 'printer:list',
+  ADD_IP: 'printer:add-ip',
+  REMOVE: 'printer:remove',
+  SET_ACTIVE: 'printer:set-active',
+  GET_ACTIVE: 'printer:get-active',
+  PRINT_TEST: 'printer:print-test',
+  PRINT_JOB: 'printer:print-job',
+  GET_SETTINGS: 'printer:get-settings',
+  SET_SETTINGS: 'printer:set-settings',
+  DISCOVER_USB: 'printer:discover-usb'
+} as const;

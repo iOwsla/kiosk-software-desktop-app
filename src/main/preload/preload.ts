@@ -8,7 +8,12 @@ import {
   UpdateStatus, 
   UpdateInfo,
   PortChangeNotification,
-  UpdateNotification
+  UpdateNotification,
+  PRINTER_IPC,
+  PrinterDevice,
+  PrinterModuleSettings,
+  IPPrinterConfig,
+  PrintJobRequest
 } from '../../../shared/types';
 
 // Define the API that will be exposed to the renderer process
@@ -21,6 +26,18 @@ interface ElectronAPI {
     getSavedKey: () => Promise<string | null>;
   };
   
+  // Printer operations
+  printer: {
+    getSettings: () => Promise<PrinterModuleSettings>;
+    setSettings: (next: Partial<PrinterModuleSettings>) => Promise<PrinterModuleSettings>;
+    list: () => Promise<PrinterDevice[]>;
+    addIP: (cfg: IPPrinterConfig) => Promise<PrinterDevice>;
+    remove: (id: string) => Promise<void>;
+    getActive: () => Promise<PrinterDevice | null>;
+    setActive: (id: string) => Promise<void>;
+    printTest: (id?: string) => Promise<{ success: boolean }>;
+    printJob: (job: PrintJobRequest) => Promise<{ success: boolean }>;
+  };
   // Window operations
   window: {
     showKiosk: () => Promise<void>;
@@ -86,6 +103,18 @@ const electronAPI: ElectronAPI = {
     
     getSavedKey: () => 
       ipcRenderer.invoke(IPC_CHANNELS.LICENSE_GET_KEY)
+  },
+  
+  printer: {
+    getSettings: () => ipcRenderer.invoke(PRINTER_IPC.GET_SETTINGS),
+    setSettings: (next: Partial<PrinterModuleSettings>) => ipcRenderer.invoke(PRINTER_IPC.SET_SETTINGS, next),
+    list: () => ipcRenderer.invoke(PRINTER_IPC.LIST),
+    addIP: (cfg: IPPrinterConfig) => ipcRenderer.invoke(PRINTER_IPC.ADD_IP, cfg),
+    remove: (id: string) => ipcRenderer.invoke(PRINTER_IPC.REMOVE, id),
+    getActive: () => ipcRenderer.invoke(PRINTER_IPC.GET_ACTIVE),
+    setActive: (id: string) => ipcRenderer.invoke(PRINTER_IPC.SET_ACTIVE, id),
+    printTest: (id?: string) => ipcRenderer.invoke(PRINTER_IPC.PRINT_TEST, id),
+    printJob: (job: PrintJobRequest) => ipcRenderer.invoke(PRINTER_IPC.PRINT_JOB, job)
   },
   
   window: {

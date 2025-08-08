@@ -25,12 +25,12 @@ export class WindowManager {
     this.kioskWindow = new BrowserWindow({
       width,
       height,
-      fullscreen: !this.isDev,
-      kiosk: !this.isDev,
-      frame: this.isDev,
-      resizable: this.isDev,
-      alwaysOnTop: !this.isDev,
-      skipTaskbar: !this.isDev,
+      fullscreen: false,
+      kiosk: false,
+      frame: true,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -71,13 +71,7 @@ export class WindowManager {
       this.kioskWindow = null;
     });
 
-    // Prevent closing in production
-    if (!this.isDev) {
-      this.kioskWindow.on('close', (event) => {
-        event.preventDefault();
-        logger.warn('Attempted to close kiosk window in production mode');
-      });
-    }
+    // Allow normal close/minimize/maximize behavior in production
   }
 
   public showLicenseInputWindow(): void {

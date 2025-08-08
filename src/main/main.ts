@@ -5,6 +5,7 @@ import { LicenseManager } from './services/LicenseManager';
 import { WindowManager } from './services/WindowManager';
 import { PortManager } from './services/PortManager';
 import { UpdateManager } from './services/UpdateManager';
+import { printerManager } from './services/PrinterManager';
 import { logger } from '../../api/utils/logger';
 
 // test
@@ -15,6 +16,7 @@ class KioskApp {
   private windowManager: WindowManager;
   private portManager: PortManager;
   private updateManager: UpdateManager;
+  private printerManager = printerManager;
   private isDev: boolean;
 
   constructor() {
@@ -157,6 +159,18 @@ class KioskApp {
     ipcMain.handle(IPC_CHANNELS.APP_QUIT, () => {
       this.shutdown();
     });
+    // Printer IPC
+    const { PRINTER_IPC } = require('../../shared/types');
+
+    ipcMain.handle(PRINTER_IPC.GET_SETTINGS, () => this.printerManager.getSettings());
+    ipcMain.handle(PRINTER_IPC.SET_SETTINGS, (_e, next) => this.printerManager.setSettings(next));
+    ipcMain.handle(PRINTER_IPC.LIST, () => this.printerManager.listPrinters());
+    ipcMain.handle(PRINTER_IPC.ADD_IP, (_e, cfg) => this.printerManager.addIPPrinter(cfg));
+    ipcMain.handle(PRINTER_IPC.REMOVE, (_e, id) => this.printerManager.removePrinter(id));
+    ipcMain.handle(PRINTER_IPC.GET_ACTIVE, () => this.printerManager.getActivePrinter());
+    ipcMain.handle(PRINTER_IPC.SET_ACTIVE, (_e, id) => this.printerManager.setActivePrinter(id));
+    ipcMain.handle(PRINTER_IPC.PRINT_TEST, (_e, id?) => this.printerManager.printTest(id));
+    ipcMain.handle(PRINTER_IPC.PRINT_JOB, (_e, job) => this.printerManager.printJob(job));
 
     ipcMain.handle(IPC_CHANNELS.APP_MINIMIZE, () => {
       const focusedWindow = BrowserWindow.getFocusedWindow();
