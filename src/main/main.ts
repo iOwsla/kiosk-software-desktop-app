@@ -1,6 +1,4 @@
 import { app, BrowserWindow, ipcMain, Menu } from 'electron';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const packageJson = require('../../package.json');
 import { APIServer } from '../../api/server';
 import { IPC_CHANNELS } from '../../shared/types';
 import { LicenseManager } from './services/LicenseManager';
@@ -355,8 +353,8 @@ class KioskApp {
         const status = this.updateManager.getStatus();
 
         return {
-          currentVersion: packageJson.version,
-          appName: packageJson.name,
+          currentVersion: app.getVersion(),
+          appName: app.getName(),
           updateStatus: status,
           platform: process.platform,
           arch: process.arch,

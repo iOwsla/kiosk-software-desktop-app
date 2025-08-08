@@ -34,7 +34,7 @@ export class WindowManager {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, '../preload/preload.js'),
+        preload: path.join(__dirname, 'preload.js'),
         webSecurity: true,
         allowRunningInsecureContent: false
       },
@@ -50,11 +50,11 @@ export class WindowManager {
     });
 
     // Load the kiosk page
-    const indexPath = this.isDev 
-      ? 'http://localhost:3000/#/kiosk'
-      : `file://${path.join(__dirname, '../index.html#/kiosk')}`;
-    
-    this.kioskWindow.loadURL(indexPath);
+    if (this.isDev) {
+      this.kioskWindow.loadURL('http://localhost:3000/#/kiosk');
+    } else {
+      this.kioskWindow.loadFile(path.join(__dirname, 'index.html'), { hash: 'kiosk' });
+    }
 
     this.kioskWindow.once('ready-to-show', () => {
       this.kioskWindow?.show();
@@ -97,18 +97,18 @@ export class WindowManager {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, '../preload/preload.js'),
+        preload: path.join(__dirname, 'preload.js'),
         webSecurity: true
       },
       show: false
     });
 
     // Load the license input page
-    const indexPath = this.isDev 
-      ? 'http://localhost:3000/#/license-input'
-      : `file://${path.join(__dirname, '../index.html#/license-input')}`;
-    
-    this.licenseInputWindow.loadURL(indexPath);
+    if (this.isDev) {
+      this.licenseInputWindow.loadURL('http://localhost:3000/#/license-input');
+    } else {
+      this.licenseInputWindow.loadFile(path.join(__dirname, 'index.html'), { hash: 'license-input' });
+    }
 
     this.licenseInputWindow.once('ready-to-show', () => {
       this.licenseInputWindow?.show();
@@ -143,18 +143,18 @@ export class WindowManager {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, '../preload/preload.js'),
+        preload: path.join(__dirname, 'preload.js'),
         webSecurity: true
       },
       show: false
     });
 
     // Load the license renewal page
-    const indexPath = this.isDev 
-      ? 'http://localhost:3000/#/license-renewal'
-      : `file://${path.join(__dirname, '../index.html#/license-renewal')}`;
-    
-    this.licenseRenewalWindow.loadURL(indexPath);
+    if (this.isDev) {
+      this.licenseRenewalWindow.loadURL('http://localhost:3000/#/license-renewal');
+    } else {
+      this.licenseRenewalWindow.loadFile(path.join(__dirname, 'index.html'), { hash: 'license-renewal' });
+    }
 
     this.licenseRenewalWindow.once('ready-to-show', () => {
       this.licenseRenewalWindow?.show();
