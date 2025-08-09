@@ -15,6 +15,8 @@ export const PavoControl: React.FC = () => {
   const [start, setStart] = useState(1);
   const [end, setEnd] = useState(50);
   const [devices, setDevices] = useState<string[]>([]);
+  const [scanPort, setScanPort] = useState(4567);
+  const [scanTimeout, setScanTimeout] = useState(300);
 
   const [endpoint, setEndpoint] = useState('Pairing');
   const [method, setMethod] = useState<'GET' | 'POST'>('POST');
@@ -51,7 +53,7 @@ export const PavoControl: React.FC = () => {
   const scan = async () => {
     setLoading(true); setMsg(null);
     try {
-      const r = await fetch('/api/pavo/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base: discoverBase, start, end }) });
+      const r = await fetch('/api/pavo/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base: discoverBase, start, end, port: scanPort, timeoutMs: scanTimeout }) });
       const json = await r.json();
       const res = json.data as ScanResult;
       setDevices(res.devices || []);
@@ -72,8 +74,9 @@ export const PavoControl: React.FC = () => {
       const parsed = metaText.trim() ? JSON.parse(metaText) : {};
       const payload = { protocol: 'http', method, endPoint: endpoint, meta: parsed };
       const r = await fetch('/api/pavo/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const j = await r.json();
-      setRespText(JSON.stringify(j, null, 2));
+      const text = await r.text();
+      try { setRespText(JSON.stringify(JSON.parse(text), null, 2)); }
+      catch { setRespText(text); }
       await loadConfig();
     } catch (e) { setMsg((e as Error).message); } finally { setLoading(false); }
   };
@@ -83,10 +86,12 @@ export const PavoControl: React.FC = () => {
     try {
       const payload = { protocol: 'http', method: 'POST', endPoint: 'Pairing', meta: { SerialNumber: serialNumber, Fingerprint: fingerPrint } };
       const r = await fetch('/api/pavo/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const j = await r.json();
-      setRespText(JSON.stringify(j, null, 2));
+      const text = await r.text();
+      let parsed: any = null;
+      try { parsed = JSON.parse(text); setRespText(JSON.stringify(parsed, null, 2)); }
+      catch { setRespText(text); }
       await loadConfig();
-      setMsg(j.success ? 'Pairing başarılı' : 'Pairing başarısız');
+      setMsg(parsed?.success ? 'Pairing başarılı' : 'Pairing başarısız');
     } catch (e) { setMsg((e as Error).message); } finally { setLoading(false); }
   };
 
@@ -96,7 +101,7 @@ export const PavoControl: React.FC = () => {
       <div className="text-xs text-gray-600">Durum: {isPaired ? 'Eşleşti' : 'Eşleşmedi'} • Son Sıra No: {lastSeq ?? '-'}</div>
 
       {/* Config & Pairing */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div>
           <div className="space-y-2">
             <div className="flex space-x-2">
@@ -112,15 +117,19 @@ export const PavoControl: React.FC = () => {
           </div>
         </div>
         <div>
-          <div className="flex space-x-2 mb-2">
-            <input className="input-field w-32" value={discoverBase} onChange={e => setBase(e.target.value)} placeholder="192.168.1" />
-            <input className="input-field w-20" type="number" value={start} onChange={e => setStart(parseInt(e.target.value) || 1)} />
-            <input className="input-field w-20" type="number" value={end} onChange={e => setEnd(parseInt(e.target.value) || 50)} />
-            <button className="btn-secondary" onClick={scan} disabled={loading}>Tara</button>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-2">
+            <input className="input-field" value={discoverBase} onChange={e => setBase(e.target.value)} placeholder="192.168.1" />
+            <input className="input-field" type="number" value={start} onChange={e => setStart(parseInt(e.target.value) || 1)} placeholder="Başlangıç" />
+            <input className="input-field" type="number" value={end} onChange={e => setEnd(parseInt(e.target.value) || 50)} placeholder="Bitiş" />
+            <input className="input-field" type="number" value={scanPort} onChange={e => setScanPort(parseInt(e.target.value) || 4567)} placeholder="Port" />
+            <div className="flex gap-2">
+              <input className="input-field" type="number" value={scanTimeout} onChange={e => setScanTimeout(parseInt(e.target.value) || 300)} placeholder="Timeout(ms)" />
+              <button className="btn-secondary whitespace-nowrap" onClick={scan} disabled={loading}>Tara</button>
+            </div>
           </div>
           <div className="border rounded p-2 max-h-48 overflow-auto text-sm">
             {devices.length === 0 ? <div>Sonuç yok</div> : devices.map(d => (
-              <div key={d} className="py-1">✓ {d}:4567</div>
+              <div key={d} className="py-1">✓ {d}:{scanPort}</div>
             ))}
           </div>
         </div>
@@ -128,7 +137,7 @@ export const PavoControl: React.FC = () => {
 
       {/* Request Builder */}
       <div className="space-y-2">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 items-center">
           <select className="input-field" value={endpoint} onChange={e => setEndpoint(e.target.value)}>
             <option>Pairing</option>
             <option>Sale</option>
@@ -147,7 +156,7 @@ export const PavoControl: React.FC = () => {
             <button className="btn-secondary" onClick={() => quickSet('cancelResult')}>CancelResult</button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <textarea className="input-field min-h-[120px] font-mono" value={metaText} onChange={e => setMetaText(e.target.value)} placeholder="Meta JSON" />
           <textarea className="input-field min-h-[120px] font-mono" value={respText} readOnly placeholder="Yanıt" />
         </div>

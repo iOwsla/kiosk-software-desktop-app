@@ -9,7 +9,7 @@ const pavoConfig: PavoConfig = {
 
 // Pavo durum yönetimi (eşleşme, sıra no, meşguliyet)
 let isPaired = false;
-let lastTransactionSequence = 1453; // Pairing için kullanılan sabit
+let lastTransactionSequence = 1; // Pairing için kullanılan sabit
 let isBusy = false;
 const ALLOWED_DURING_BUSY = new Set(['AbortCurrentPayment', 'GetSaleResult', 'GetCancellationResult']);
 
@@ -52,8 +52,17 @@ export class PavoController {
     const base = body.base || '192.168.1';
     const start = Math.max(1, body.start ?? 1);
     const end = Math.min(254, body.end ?? 254);
+    const port = body.port ?? 4567;
+    const timeout = Math.max(100, Math.min(1000, body.timeoutMs ?? 200));
     const hosts = Array.from({ length: end - start + 1 }, (_, i) => `${base}.${start + i}`);
-    const results = await Promise.all(hosts.map(h => isPortOpen(h, 4567, 200)));
+    // Paralel taramada bağlantı sayısını sınırlayalım (50)
+    const concurrency = 50;
+    const results: boolean[] = [];
+    for (let i = 0; i < hosts.length; i += concurrency) {
+      const chunk = hosts.slice(i, i + concurrency);
+      const chunkResults = await Promise.all(chunk.map(h => isPortOpen(h, port, timeout)));
+      results.push(...chunkResults);
+    }
     const devices = hosts.filter((_, i) => results[i]);
     const payload: PavoScanResult = { devices, totalScanned: hosts.length };
     res.json({ success: true, data: payload });
@@ -121,7 +130,7 @@ export class PavoController {
       // Eşleşme başarılı ise pairing bayrağını set et, sırayı resetle
       if (isPairing && success) {
         isPaired = true;
-        lastTransactionSequence = 1453;
+        lastTransactionSequence = 1;
       }
       // Pairing dışı isteklerde, başarı durumuna bakılmaksızın sequence'i ilerlet
       if (!isPairing) {

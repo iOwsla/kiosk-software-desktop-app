@@ -181,6 +181,7 @@ export const IPC_CHANNELS = {
   APP_QUIT: 'app:quit',
   APP_MINIMIZE: 'app:minimize',
   APP_MAXIMIZE: 'app:maximize',
+  APP_OPEN_DEVTOOLS: 'app:open-devtools',
   
   // Port management operations
   PORT_GET_STATUS: 'port:get-status',
@@ -250,5 +251,5 @@ export interface PavoResponse<T = unknown> {
   meta: Record<string, unknown>;
 }
 
-export interface PavoScanRequest { base?: string; start?: number; end?: number; }
+export interface PavoScanRequest { base?: string; start?: number; end?: number; port?: number; timeoutMs?: number }
 export interface PavoScanResult { devices: string[]; totalScanned: number; }

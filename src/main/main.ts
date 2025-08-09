@@ -189,6 +189,13 @@ class KioskApp {
       }
     });
 
+    ipcMain.handle(IPC_CHANNELS.APP_OPEN_DEVTOOLS, () => {
+      const win = BrowserWindow.getFocusedWindow() || this.windowManager.getCurrentWindow();
+      if (win) {
+        win.webContents.openDevTools({ mode: 'detach' });
+      }
+    });
+
     // Port management IPC handlers
     ipcMain.handle(IPC_CHANNELS.PORT_GET_STATUS, async () => {
       try {

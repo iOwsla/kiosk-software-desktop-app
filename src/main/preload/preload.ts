@@ -51,6 +51,7 @@ interface ElectronAPI {
     quit: () => Promise<void>;
     minimize: () => Promise<void>;
     maximize: () => Promise<void>;
+    openDevTools: () => Promise<void>;
   };
   
   // Port management operations
@@ -138,7 +139,9 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.APP_MINIMIZE),
     
     maximize: () => 
-      ipcRenderer.invoke(IPC_CHANNELS.APP_MAXIMIZE)
+      ipcRenderer.invoke(IPC_CHANNELS.APP_MAXIMIZE),
+    openDevTools: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_DEVTOOLS)
   },
   
   port: {
