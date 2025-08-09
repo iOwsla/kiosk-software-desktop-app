@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { UpdateManager } from '../../src/main/services/UpdateManager';
-import type { UpdateStatus } from '../../shared/types';
 import { logger } from '../utils/logger';
+import packageJson from '../../package.json';
 
 export class UpdateController {
   private updateManager: UpdateManager;
@@ -205,7 +205,6 @@ export class UpdateController {
   public async getUpdateInfo(req: Request, res: Response): Promise<void> {
     try {
       const status = this.updateManager.getStatus();
-      const packageJson = require('../../package.json');
       
       res.json({
         success: true,
