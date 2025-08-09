@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { licenseRouter } from './routes/license';
 import { portRouter } from './routes/port';
 import { updateRouter } from './routes/update';
+import { printerRouter } from './routes/printer';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 
@@ -52,6 +53,7 @@ export class APIServer {
     this.app.use('/api/license', licenseRouter);
     this.app.use('/api/port', portRouter);
     this.app.use('/api/update', updateRouter);
+    this.app.use('/api/printer', printerRouter);
 
     // 404 handler
     this.app.use('*', (req, res) => {
