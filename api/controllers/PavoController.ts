@@ -1,15 +1,17 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import type { PavoConfig, PavoRequestPayload, PavoResponse, PavoScanRequest, PavoScanResult } from '../../shared/types';
+import { PavoDeviceStore } from '../services/PavoDeviceStore';
 
 const pavoConfig: PavoConfig = {
-  ipAddress: '192.168.1.10',
+  ipAddress: '192.168.1.218',
   port: 4567
 };
 
 // Pavo durum yönetimi (eşleşme, sıra no, meşguliyet)
 let isPaired = false;
-let lastTransactionSequence = 1; // Pairing için kullanılan sabit
+// Sıralı sayaç ve dinamik artış adımı (bazı cihazlar +2 ilerletir)
+let lastTransactionSequence = 1;
 let isBusy = false;
 const ALLOWED_DURING_BUSY = new Set(['AbortCurrentPayment', 'GetSaleResult', 'GetCancellationResult']);
 
@@ -33,12 +35,27 @@ async function isPortOpen(ip: string, port: number, timeoutMs = 300): Promise<bo
 }
 
 export class PavoController {
+  private deviceStore = PavoDeviceStore.getInstance();
+
   public getConfig = (_req: Request, res: Response) => {
+    const deviceId = (_req.query.deviceId as string) || undefined;
+    if (deviceId) {
+      const dev = this.deviceStore.get(deviceId);
+      if (!dev) return res.status(404).json({ success: false, data: null, error: 'Device not found', meta: {} });
+      return res.json({ success: true, data: { ipAddress: dev.ipAddress, port: dev.port, serialNumber: dev.serialNumber, fingerPrint: dev.fingerPrint, isPaired: dev.isPaired, lastTransactionSequence: dev.lastTransactionSequence } });
+    }
     res.json({ success: true, data: { ...pavoConfig, isPaired, lastTransactionSequence } });
   };
 
   public setConfig = (req: Request, res: Response) => {
-    const { ipAddress, port, serialNumber, fingerPrint, kioskSerialNumber } = req.body as Partial<PavoConfig>;
+    const { deviceId, ipAddress, port, serialNumber, fingerPrint, kioskSerialNumber } = req.body as Partial<PavoConfig> & { deviceId?: string };
+    if (deviceId) {
+      const exists = this.deviceStore.get(deviceId);
+      const updated = exists
+        ? this.deviceStore.update(deviceId, { ipAddress, port, serialNumber, fingerPrint })
+        : this.deviceStore.create({ id: deviceId, ipAddress, port, serialNumber, fingerPrint });
+      return res.json({ success: true, data: { ipAddress: updated.ipAddress, port: updated.port, serialNumber: updated.serialNumber, fingerPrint: updated.fingerPrint, isPaired: updated.isPaired, lastTransactionSequence: updated.lastTransactionSequence } });
+    }
     if (ipAddress) pavoConfig.ipAddress = ipAddress;
     if (typeof port === 'number') pavoConfig.port = port;
     if (serialNumber !== undefined) pavoConfig.serialNumber = serialNumber;
@@ -71,33 +88,39 @@ export class PavoController {
   public async proxy(_req: Request, res: Response) {
     try {
       const reqBody = _req.body as PavoRequestPayload;
-      const baseUrl = `${reqBody.protocol}://${pavoConfig.ipAddress}:${pavoConfig.port}`;
+      const deviceId = (_req.body?.deviceId as string) || undefined;
+      const deviceState = deviceId ? this.deviceStore.get(deviceId) : undefined;
+      const ip = deviceState?.ipAddress ?? pavoConfig.ipAddress;
+      const port = deviceState?.port ?? pavoConfig.port;
+      const serial = deviceState?.serialNumber ?? pavoConfig.serialNumber;
+      const fp = deviceState?.fingerPrint ?? pavoConfig.fingerPrint;
+      const baseUrl = `${reqBody.protocol}://${ip}:${port}`;
       const url = `${baseUrl}/${reqBody.endPoint}`;
 
       // pavo.py make_request ile aynı TransactionHandle yapısı
       const nowIso = new Date().toISOString();
-      // TransactionSequence kuralı: Pairing dışındaki her istekte artır
+      // TransactionSequence kuralı: Pairing mevcut değerle, diğer istekler +1
       const isPairing = reqBody.endPoint === 'Pairing';
-      const nextSequence = isPairing ? 1453 : (lastTransactionSequence + 1);
+      const currentSeq = deviceState ? deviceState.lastTransactionSequence : lastTransactionSequence;
+      const requestedSequenceBase = isPairing ? currentSeq : (currentSeq + 1);
 
-      const transactionHandle = {
-        SerialNumber: pavoConfig.serialNumber,
-        TransactionDate: nowIso,
-        TransactionSequence: nextSequence,
-        Fingerprint: pavoConfig.fingerPrint
-      };
-      const wrappedPayload: Record<string, unknown> = { TransactionHandle: transactionHandle };
-      // meta içeriğini üst seviyeye ekle
-      if (reqBody.meta && typeof reqBody.meta === 'object') {
-        for (const [k, v] of Object.entries(reqBody.meta)) {
-          wrappedPayload[k] = v as unknown;
+      const buildPayload = (sequence: number) => {
+        const transactionHandle = {
+          SerialNumber: serial,
+          TransactionDate: nowIso,
+          TransactionSequence: sequence,
+          Fingerprint: fp
+        };
+        const wrapped: Record<string, unknown> = { TransactionHandle: transactionHandle };
+        if (reqBody.meta && typeof reqBody.meta === 'object') {
+          for (const [k, v] of Object.entries(reqBody.meta)) {
+            wrapped[k] = v as unknown;
+          }
         }
-      }
+        return wrapped;
+      };
 
-      // HTTPS doğrulamasını kapatma (pavo.py verify=false eşdeğeri)
-      const httpsAgent = reqBody.protocol === 'https'
-        ? new (await import('https')).Agent({ rejectUnauthorized: false })
-        : undefined;
+      // HTTPS doğrulamasını kapatma (pavo.py verify=false eşdeğeri) - aşağıda axios çağrısında ayarlanıyor
 
       // Meşguliyet kontrolü (istisnalar hariç)
       if (isBusy && !ALLOWED_DURING_BUSY.has(reqBody.endPoint)) {
@@ -110,15 +133,47 @@ export class PavoController {
 
       let axiosResponse;
       try {
-        axiosResponse = await axios.request({
-          url,
-          method: reqBody.method,
-          data: wrappedPayload,
-          timeout: 10000,
-          httpsAgent,
-          // GET için de body gönderimine izin vermek üzere validateStatus sadece başarı kontrolü için
-          validateStatus: () => true
-        });
+        // Agents: keepAlive kapalı, bazı gömülü cihazlarda gerekli
+        const httpAgent = new (await import('http')).Agent({ keepAlive: false });
+        const httpsAgent = reqBody.protocol === 'https'
+          ? new (await import('https')).Agent({ keepAlive: false, rejectUnauthorized: false })
+          : undefined;
+
+        // Tekrarlı istek yapan yardımcı fonksiyon
+        const sendWithSequence = async (sequence: number) => {
+          const payload = buildPayload(sequence);
+          const response = await axios.request({
+            url,
+            method: reqBody.method,
+            data: payload,
+            timeout: 10000,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Connection': 'close'
+            },
+            proxy: false,
+            httpAgent,
+            httpsAgent,
+            validateStatus: () => true
+          });
+          return response;
+        };
+
+        // İlk deneme
+        axiosResponse = await sendWithSequence(requestedSequenceBase);
+
+        console.log(axiosResponse.data);
+
+        const firstHasError = axiosResponse.data?.ErrorCode == 73;
+        const shouldRetry = firstHasError;
+        if (shouldRetry) {
+          // Sequence +1 ile ikinci deneme (kullanıcıya yansıtma yok)
+          const retrySequence = requestedSequenceBase + 1;
+          const retryResponse = await sendWithSequence(retrySequence);
+          axiosResponse = retryResponse;
+          // lastTransactionSequence güncellemesini altta genel mantık yapacak
+        }
       } finally {
         if (!isPairing && !ALLOWED_DURING_BUSY.has(reqBody.endPoint)) {
           isBusy = false;
@@ -127,14 +182,50 @@ export class PavoController {
 
       const success = !(axiosResponse.data?.HasError ?? (axiosResponse.status < 200 || axiosResponse.status >= 300));
       const out: PavoResponse = { success, data: axiosResponse.data, error: success ? null : 'Request failed', meta: {} };
-      // Eşleşme başarılı ise pairing bayrağını set et, sırayı resetle
-      if (isPairing && success) {
-        isPaired = true;
-        lastTransactionSequence = 1;
+
+      // Cihaz yanıtında TransactionHandle varsa ona senkron ol
+      const returnedSeq = axiosResponse?.data?.TransactionHandle?.TransactionSequence;
+      if (typeof returnedSeq === 'number' && Number.isFinite(returnedSeq)) {
+        if (deviceState) {
+          this.deviceStore.update(deviceState.id, { lastTransactionSequence: returnedSeq, isPaired: isPairing ? success : deviceState.isPaired });
+        } else {
+          lastTransactionSequence = returnedSeq;
+        }
+      } else {
+        // Başarı veya başarısızlık durumunda, son denemede kullanılan sequence'i temel al
+        // İlk deneme başarılı olmadıysa ikinci deneme yapılmıştır ve payload'ta +1 kullanılmıştır
+        // axiosResponse.config.data içinde en son gönderilen payload bulunur
+        try {
+          const sent = typeof axiosResponse.config.data === 'string' ? JSON.parse(axiosResponse.config.data) : axiosResponse.config.data;
+          const sentSeq = sent?.TransactionHandle?.TransactionSequence;
+          if (typeof sentSeq === 'number' && Number.isFinite(sentSeq)) {
+            if (deviceState) {
+              this.deviceStore.update(deviceState.id, { lastTransactionSequence: sentSeq, isPaired: isPairing ? success : deviceState.isPaired });
+            } else {
+              lastTransactionSequence = sentSeq;
+            }
+          } else {
+            if (deviceState) {
+              this.deviceStore.update(deviceState.id, { lastTransactionSequence: requestedSequenceBase, isPaired: isPairing ? success : deviceState.isPaired });
+            } else {
+              lastTransactionSequence = requestedSequenceBase; // emniyetli varsayılan
+            }
+          }
+        } catch {
+          if (deviceState) {
+            this.deviceStore.update(deviceState.id, { lastTransactionSequence: requestedSequenceBase, isPaired: isPairing ? success : deviceState.isPaired });
+          } else {
+            lastTransactionSequence = requestedSequenceBase;
+          }
+        }
       }
-      // Pairing dışı isteklerde, başarı durumuna bakılmaksızın sequence'i ilerlet
-      if (!isPairing) {
-        lastTransactionSequence = nextSequence;
+
+      if (isPairing && success) {
+        if (deviceState) {
+          this.deviceStore.update(deviceState.id, { isPaired: true });
+        } else {
+          isPaired = true;
+        }
       }
       res.json(out);
     } catch (err: unknown) {

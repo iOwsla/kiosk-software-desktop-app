@@ -1,0 +1,187 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "windows", "darwin", "linux-musl"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Sync Queue for offline-online synchronization
+model SyncQueue {
+  id            Int      @id @default(autoincrement())
+  operationType String   // create, update, delete
+  entityType    String   // product, customer, transaction, etc.
+  entityId      String
+  payload       String   // JSON data
+  status        String   @default("pending") // pending, syncing, completed, failed
+  retryCount    Int      @default(0)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  syncedAt      DateTime?
+
+  @@unique([entityType, entityId, operationType, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Transaction Log
+model Transaction {
+  id             Int      @id @default(autoincrement())
+  transactionId  String   @unique
+  transactionType String
+  amount         Float?
+  currency       String   @default("TRY")
+  customerData   String?  // JSON
+  items          String?  // JSON array
+  paymentMethod  String?
+  status         String   @default("pending")
+  receiptData    String?  // JSON
+  synced         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@index([synced])
+  @@index([createdAt])
+}
+
+// Products (Offline copy)
+model Product {
+  id            Int      @id @default(autoincrement())
+  productId     String   @unique
+  barcode       String?
+  name          String
+  description   String?
+  category      String?
+  price         Float?
+  stockQuantity Int      @default(0)
+  imageUrl      String?
+  attributes    String?  // JSON
+  isActive      Boolean  @default(true)
+  syncedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([barcode])
+  @@index([category])
+  @@index([isActive])
+}
+
+// Customers (Offline copy)
+model Customer {
+  id           Int      @id @default(autoincrement())
+  customerId   String   @unique
+  name         String?
+  phone        String?
+  email        String?
+  loyaltyCard  String?
+  points       Int      @default(0)
+  totalSpent   Float    @default(0)
+  visitCount   Int      @default(0)
+  lastVisit    DateTime?
+  preferences  String?  // JSON
+  syncedAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([phone])
+  @@index([loyaltyCard])
+  @@index([email])
+}
+
+// Local Cache
+model LocalCache {
+  id         Int      @id @default(autoincrement())
+  cacheKey   String   @unique
+  cacheValue String
+  cacheType  String
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([cacheKey])
+  @@index([expiresAt])
+}
+
+// Device Information
+model DeviceInfo {
+  id         Int      @id @default(autoincrement())
+  deviceId   String   @unique
+  deviceName String?
+  location   String?
+  ipAddress  String?
+  lastOnline DateTime?
+  syncStatus String?
+  config     String?  // JSON configuration
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// User Sessions
+model UserSession {
+  id          Int      @id @default(autoincrement())
+  sessionId   String   @unique
+  userType    String   @default("customer")
+  userData    String?  // JSON
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  activityLog String?  // JSON array
+  isActive    Boolean  @default(true)
+
+  @@index([sessionId])
+  @@index([isActive])
+}
+
+// License Cache
+model LicenseCache {
+  id           Int      @id @default(autoincrement())
+  apiKey       String   @unique
+  isValid      Boolean  @default(false)
+  expiresAt    DateTime?
+  lastVerified DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([apiKey])
+  @@index([expiresAt])
+}
+
+// App Logs
+model AppLog {
+  id        Int      @id @default(autoincrement())
+  level     String   // info, warn, error, debug
+  message   String
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([createdAt])
+}
+
+// Update History
+model UpdateHistory {
+  id           Int      @id @default(autoincrement())
+  version      String
+  downloadDate DateTime?
+  installDate  DateTime?
+  status       String   @default("pending")
+  releaseNotes String?
+
+  @@index([version])
+  @@index([status])
+}
+
+// Port Configuration
+model PortConfiguration {
+  id          Int      @id @default(autoincrement())
+  portNumber  Int      @unique
+  isActive    Boolean  @default(false)
+  lastUsed    DateTime @default(now())
+  serviceType String   @default("api")
+
+  @@index([isActive])
+  @@index([portNumber])
+}

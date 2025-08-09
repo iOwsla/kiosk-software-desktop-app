@@ -7,6 +7,9 @@ import { PortManager } from './services/PortManager';
 import { UpdateManager } from './services/UpdateManager';
 import { printerManager } from './services/PrinterManager';
 import { logger } from '../../api/utils/logger';
+import { initializeDatabase, disconnectDatabase } from './database/prisma';
+import { PrismaOfflineSyncService } from './services/PrismaOfflineSyncService';
+import { PrismaManager } from './database/PrismaManager';
 
 // test
 
@@ -17,6 +20,8 @@ class KioskApp {
   private portManager: PortManager;
   private updateManager: UpdateManager;
   private printerManager = printerManager;
+  private syncService: PrismaOfflineSyncService | null = null;
+  private prismaManager: PrismaManager | null = null;
   private isDev: boolean;
 
   constructor() {
@@ -62,6 +67,23 @@ class KioskApp {
     try {
       logger.info('Initializing Kiosk Application');
 
+      // Initialize Prisma database
+      await initializeDatabase();
+      this.prismaManager = PrismaManager.getInstance();
+      logger.info('Database initialized');
+
+      // Initialize offline sync service
+      const syncConfig = {
+        apiUrl: process.env.API_URL || 'http://localhost:3001',
+        apiKey: process.env.API_KEY,
+        syncInterval: parseInt(process.env.SYNC_INTERVAL || '5'),
+        maxRetries: parseInt(process.env.MAX_RETRIES || '3'),
+        batchSize: parseInt(process.env.BATCH_SIZE || '100')
+      };
+      this.syncService = PrismaOfflineSyncService.getInstance(syncConfig);
+      this.syncService.startAutoSync();
+      logger.info('Offline sync service initialized');
+
       // Start port monitoring
       this.portManager.startPortMonitoring();
       
@@ -69,7 +91,16 @@ class KioskApp {
       this.updateManager.startAutoUpdateCheck(60);
 
       // Start API server
-      await this.apiServer.start();
+      try {
+        await this.apiServer.start();
+        logger.info('API Server started successfully on port 3001');
+      } catch (apiError) {
+        logger.error('Failed to start API server', { apiError });
+        // Continue without API server in development
+        if (!this.isDev) {
+          throw apiError;
+        }
+      }
 
       // Remove menu in production
       if (!this.isDev) {
@@ -387,6 +418,80 @@ class KioskApp {
         throw error;
       }
     });
+
+    // Database IPC handlers
+    ipcMain.handle('database:searchProducts', async (event, query: string) => {
+      try {
+        return await this.prismaManager?.searchProducts(query);
+      } catch (error) {
+        logger.error('IPC Search products failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('database:getProductByBarcode', async (event, barcode: string) => {
+      try {
+        return await this.prismaManager?.getProductByBarcode(barcode);
+      } catch (error) {
+        logger.error('IPC Get product by barcode failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('database:saveTransaction', async (event, transaction: any) => {
+      try {
+        return await this.prismaManager?.saveTransaction(transaction);
+      } catch (error) {
+        logger.error('IPC Save transaction failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('database:searchCustomers', async (event, query: string) => {
+      try {
+        return await this.prismaManager?.searchCustomers(query);
+      } catch (error) {
+        logger.error('IPC Search customers failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('database:getDashboardStats', async () => {
+      try {
+        return await this.prismaManager?.getDashboardStats();
+      } catch (error) {
+        logger.error('IPC Get dashboard stats failed', { error });
+        throw error;
+      }
+    });
+
+    // Sync IPC handlers
+    ipcMain.handle('sync:getStatus', async () => {
+      try {
+        return await this.syncService?.getSyncStatus();
+      } catch (error) {
+        logger.error('IPC Get sync status failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('sync:syncNow', async () => {
+      try {
+        return await this.syncService?.syncNow();
+      } catch (error) {
+        logger.error('IPC Sync now failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('sync:getPendingCount', async () => {
+      try {
+        return await this.prismaManager?.getPendingSyncCount();
+      } catch (error) {
+        logger.error('IPC Get pending sync count failed', { error });
+        throw error;
+      }
+    });
   }
 
   private async shutdown(): Promise<void> {
@@ -396,6 +501,11 @@ class KioskApp {
       // Stop background verification
       this.licenseManager.stopBackgroundVerification();
       
+      // Stop sync service
+      if (this.syncService) {
+        this.syncService.cleanup();
+      }
+      
       // Stop port monitoring
       this.portManager.cleanup();
       
@@ -404,6 +514,9 @@ class KioskApp {
       
       // Stop API server
       await this.apiServer.stop();
+      
+      // Disconnect database
+      await disconnectDatabase();
       
       // Close all windows
       this.windowManager.closeAllWindows();

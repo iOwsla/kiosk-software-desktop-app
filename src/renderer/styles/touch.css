@@ -1,0 +1,400 @@
+/* Touch-Friendly Global Styles */
+
+/* Root variables for touch-friendly design */
+:root {
+  --touch-target-min: 48px;
+  --touch-padding: 16px;
+  --touch-margin: 12px;
+  --font-size-base: 18px;
+  --font-size-small: 16px;
+  --font-size-large: 24px;
+  --font-size-xlarge: 32px;
+  --font-size-xxlarge: 40px;
+  --border-radius-small: 8px;
+  --border-radius-medium: 12px;
+  --border-radius-large: 16px;
+  --border-radius-xlarge: 24px;
+  --transition-fast: 150ms;
+  --transition-normal: 300ms;
+  --transition-slow: 500ms;
+}
+
+/* Disable text selection by default for touch interfaces */
+* {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Enable text selection for input fields */
+input, textarea, [contenteditable="true"] {
+  -webkit-touch-callout: default;
+  user-select: text;
+}
+
+/* Base body styles for touch */
+body {
+  font-size: var(--font-size-base);
+  touch-action: manipulation;
+  overscroll-behavior: contain;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Touch-friendly button base styles */
+.touch-button {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  padding: var(--touch-padding);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  border-radius: var(--border-radius-medium);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
+  position: relative;
+  overflow: hidden;
+  border: none;
+  outline: none;
+}
+
+/* Touch ripple effect */
+.touch-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width var(--transition-normal), height var(--transition-normal);
+}
+
+.touch-button:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Button sizes */
+.touch-button-small {
+  min-height: 40px;
+  padding: 12px 20px;
+  font-size: var(--font-size-small);
+}
+
+.touch-button-large {
+  min-height: 64px;
+  padding: 20px 32px;
+  font-size: var(--font-size-large);
+}
+
+.touch-button-xlarge {
+  min-height: 80px;
+  padding: 24px 40px;
+  font-size: var(--font-size-xlarge);
+}
+
+/* Touch-friendly input fields */
+.touch-input {
+  min-height: var(--touch-target-min);
+  padding: var(--touch-padding);
+  font-size: var(--font-size-base);
+  border-radius: var(--border-radius-medium);
+  border: 2px solid #e5e7eb;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  width: 100%;
+  background: white;
+}
+
+.touch-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.touch-input-large {
+  min-height: 64px;
+  font-size: var(--font-size-large);
+  padding: 20px;
+}
+
+/* Touch-friendly cards */
+.touch-card {
+  padding: var(--touch-padding);
+  border-radius: var(--border-radius-large);
+  background: white;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+  transition: all var(--transition-normal);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.touch-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Touch-friendly grid */
+.touch-grid {
+  display: grid;
+  gap: var(--touch-margin);
+  padding: var(--touch-padding);
+}
+
+.touch-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.touch-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.touch-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Responsive touch grid */
+@media (max-width: 768px) {
+  .touch-grid-3,
+  .touch-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .touch-grid-2,
+  .touch-grid-3,
+  .touch-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Touch-friendly navigation */
+.touch-nav {
+  display: flex;
+  gap: var(--touch-margin);
+  padding: var(--touch-padding);
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.touch-nav-item {
+  flex: 1;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: var(--border-radius-medium);
+}
+
+.touch-nav-item:active {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.touch-nav-item-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.touch-nav-item-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Touch-friendly modal */
+.touch-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--touch-padding);
+  z-index: 1000;
+}
+
+.touch-modal-content {
+  background: white;
+  border-radius: var(--border-radius-xlarge);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--touch-padding);
+}
+
+.touch-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--touch-margin);
+  padding-bottom: var(--touch-margin);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.touch-modal-close {
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.touch-modal-close:active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Touch-friendly toggle switch */
+.touch-toggle {
+  position: relative;
+  width: 80px;
+  height: 44px;
+  background: #e5e7eb;
+  border-radius: 22px;
+  cursor: pointer;
+  transition: background var(--transition-normal);
+}
+
+.touch-toggle.active {
+  background: #10b981;
+}
+
+.touch-toggle-handle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 36px;
+  height: 36px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform var(--transition-normal);
+}
+
+.touch-toggle.active .touch-toggle-handle {
+  transform: translateX(36px);
+}
+
+/* Touch-friendly list items */
+.touch-list-item {
+  min-height: 64px;
+  padding: var(--touch-padding);
+  display: flex;
+  align-items: center;
+  gap: var(--touch-margin);
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.touch-list-item:active {
+  background: #f9fafb;
+}
+
+/* Swipeable container */
+.swipeable-container {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.swipeable-container::-webkit-scrollbar {
+  display: none;
+}
+
+.swipeable-item {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Touch feedback animations */
+@keyframes touch-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.touch-feedback {
+  animation: touch-pulse 200ms ease;
+}
+
+/* Disable hover effects on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .touch-button:hover,
+  .touch-card:hover,
+  .touch-list-item:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* Landscape mode adjustments */
+@media (orientation: landscape) and (max-height: 500px) {
+  .touch-nav {
+    padding: 8px;
+  }
+  
+  .touch-nav-item {
+    min-height: 48px;
+  }
+  
+  .touch-modal-content {
+    max-height: 80vh;
+  }
+}
+
+/* Large touch screens (tablets) */
+@media (min-width: 768px) and (hover: none) {
+  .touch-grid-tablet-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .touch-grid-tablet-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .touch-grid-tablet-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Extra large touch screens */
+@media (min-width: 1024px) and (hover: none) {
+  :root {
+    --font-size-base: 20px;
+    --font-size-large: 28px;
+    --font-size-xlarge: 36px;
+  }
+  
+  .touch-button {
+    min-height: 56px;
+  }
+  
+  .touch-input {
+    min-height: 56px;
+  }
+}

@@ -41,6 +41,12 @@ class PrinterController {
     res.json({ success: true });
   };
 
+  public printSample = async (req: Request, res: Response) => {
+    const { type, printerId } = req.body;
+    await printerManager.printSample(type, printerId);
+    res.json({ success: true });
+  };
+
   public discoverIP = async (req: Request, res: Response) => {
     const list = await printerManager.discoverIPPrinters(req.body);
     res.json({ success: true, data: list });

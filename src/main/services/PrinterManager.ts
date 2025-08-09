@@ -127,13 +127,106 @@ export class PrinterManager {
       for (const el of req.elements) {
         await this.applyElement(encoder, el);
       }
-      encoder.newline(4);
-      encoder.cut('full');
+      // Cut elementi yoksa otomatik kesim ekle
+      const hasCutElement = req.elements.some(el => el.type === 'cut');
+      if (!hasCutElement) {
+        encoder.newline(6);
+        encoder.cut('full');
+      }
       const payload = encoder.encode();
       await this.rawIpPrint(target.details!.ip, target.details!.port, Buffer.from(payload));
       return { success: true };
     }
     throw new Error('USB yazıcı desteği henüz etkin değil');
+  }
+
+  public async printSample(type: 'receipt' | 'label' | 'test', printerId?: string): Promise<{ success: boolean }> {
+    const target = printerId ? this.printers.get(printerId) : this.getActivePrinter();
+    if (!target) throw new Error('Yazıcı bulunamadı');
+    
+    const elements = this.generateSampleElements(type);
+    const request: PrintJobRequest = { printerId: target.id, elements };
+    return await this.printJob(request);
+  }
+
+  private generateSampleElements(type: 'receipt' | 'label' | 'test'): PrintElement[] {
+    const currentDate = new Date().toLocaleString('tr-TR');
+    
+    switch (type) {
+      case 'receipt':
+        return [
+          { type: 'header', content: 'ÖRNEK FİŞ', align: 'center' },
+          { type: 'line', char: '=', length: 32, align: 'center' },
+          { type: 'newline' },
+          { type: 'text', content: 'İşletme Adı: Test Market', bold: true },
+          { type: 'text', content: 'Adres: Test Mahallesi No:123' },
+          { type: 'text', content: 'Tel: 0212 123 45 67' },
+          { type: 'newline' },
+          { type: 'line', char: '-', length: 32 },
+          { type: 'text', content: `Tarih: ${currentDate}` },
+          { type: 'text', content: 'Fiş No: #2024001' },
+          { type: 'newline' },
+          { type: 'table', columns: ['Ürün', 'Adet', 'Fiyat'], rows: [
+            ['Ekmek', '2', '5.00 TL'],
+            ['Süt', '1', '8.50 TL'],
+            ['Yumurta', '1', '15.00 TL']
+          ]},
+          { type: 'line', char: '-', length: 32 },
+          { type: 'text', content: 'Toplam: 28.50 TL', bold: true, align: 'right' },
+          { type: 'text', content: 'KDV: 2.56 TL', align: 'right' },
+          { type: 'newline' },
+          { type: 'text', content: 'Teşekkür ederiz!', align: 'center' },
+          { type: 'qrcode', data: 'https://test-market.com/fis/2024001', align: 'center' },
+          { type: 'newline', count: 2 },
+          { type: 'cut' }
+        ];
+      
+      case 'label':
+        return [
+          { type: 'text', content: 'ÜRÜN ETİKETİ', bold: true, align: 'center' },
+          { type: 'line', char: '=', length: 24 },
+          { type: 'newline' },
+          { type: 'text', content: 'Ürün: Test Ürünü', bold: true },
+          { type: 'text', content: 'Kod: TU-001' },
+          { type: 'text', content: 'Fiyat: 25.90 TL', bold: true },
+          { type: 'text', content: `Tarih: ${currentDate.split(' ')[0]}` },
+          { type: 'newline' },
+          { type: 'barcode', data: 'TU001789456123', symbology: 'code128', align: 'center', showText: true },
+          { type: 'newline' },
+          { type: 'text', content: 'www.test-market.com', align: 'center' },
+          { type: 'newline', count: 2 },
+          { type: 'cut' }
+        ];
+      
+      case 'test':
+      default:
+        return [
+          { type: 'header', content: 'YAZICI TEST SAYFASI', align: 'center' },
+          { type: 'line', char: '=', length: 32, align: 'center' },
+          { type: 'newline' },
+          { type: 'text', content: 'Bu bir test çıktısıdır.', align: 'center' },
+          { type: 'text', content: `Yazdırma Zamanı: ${currentDate}` },
+          { type: 'newline' },
+          { type: 'text', content: 'Yazı Tipleri:', bold: true },
+          { type: 'text', content: 'Normal yazı' },
+          { type: 'text', content: 'Kalın yazı', bold: true },
+          { type: 'text', content: 'Altı çizgili yazı', underline: true },
+          { type: 'newline' },
+          { type: 'text', content: 'Hizalama Testleri:', bold: true },
+          { type: 'text', content: 'Sol hizalı', align: 'left' },
+          { type: 'text', content: 'Orta hizalı', align: 'center' },
+          { type: 'text', content: 'Sağ hizalı', align: 'right' },
+          { type: 'newline' },
+          { type: 'line', char: '-', length: 32 },
+          { type: 'text', content: 'QR Kod Testi:', bold: true },
+          { type: 'qrcode', data: 'Yazıcı test başarılı!', align: 'center' },
+          { type: 'newline' },
+          { type: 'text', content: 'Barkod Testi:', bold: true },
+          { type: 'barcode', data: '123456789', symbology: 'code128', align: 'center', showText: true },
+          { type: 'newline', count: 3 },
+          { type: 'cut' }
+        ];
+    }
   }
 
   private encodeSimpleTextJob(elements: PrintElement[]): Buffer {
@@ -178,7 +271,7 @@ export class PrinterManager {
         encoder.newline(element.count || 1);
         break;
       case 'cut':
-        encoder.newline(4);
+        encoder.newline(6);
         encoder.cut('full');
         break;
       case 'barcode':

@@ -2,20 +2,24 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { LicenseInputPage } from './pages/LicenseInputPage';
 import { KioskPage } from './pages/KioskPage';
+import { KioskHubPage } from './pages/KioskHubPage';
 import { LicenseRenewalPage } from './pages/LicenseRenewalPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { NotificationManager } from './components/NotificationManager';
 import { StatusIndicator } from './components/StatusIndicator';
+import { CompactConnectionStatus } from './components/ConnectionStatus';
 import './styles/globals.css';
+import './styles/touch.css';
 
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <Router>
         <div className="app min-h-screen bg-gray-50 relative">
-          {/* Status indicator - fixed position */}
-          <div className="fixed top-4 left-4 z-40">
+          {/* Status indicators - fixed position */}
+          <div className="fixed top-4 left-4 z-40 flex flex-col gap-2">
             <StatusIndicator />
+            <CompactConnectionStatus />
           </div>
           
           {/* Notification manager - fixed position */}
@@ -30,6 +34,9 @@ const App: React.FC = () => {
             
             {/* Main kiosk page */}
             <Route path="/kiosk" element={<KioskPage />} />
+            
+            {/* New Hub page */}
+            <Route path="/hub" element={<KioskHubPage />} />
             
             {/* License renewal page */}
             <Route path="/license-renewal" element={<LicenseRenewalPage />} />

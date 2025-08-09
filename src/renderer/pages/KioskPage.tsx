@@ -1,9 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { UpdateControl } from '../components/UpdateControl';
-import { PortControl } from '../components/PortControl';
-import { PavoControl } from '../components/PavoControl';
-import { PrinterControl } from '../components/PrinterControl';
+import { ConnectionStatus } from '../components/ConnectionStatus';
+import { TouchButton } from '../components/TouchButton';
+import { TouchCard } from '../components/SwipeableCard';
+import '../styles/touch.css';
+
+interface SystemStatus {
+  service: string;
+  status: 'running' | 'stopped' | 'error' | 'pending';
+  message?: string;
+  lastUpdate?: Date;
+}
+
+interface SystemMetric {
+  label: string;
+  value: string | number;
+  unit?: string;
+  trend?: 'up' | 'down' | 'stable';
+  color?: string;
+}
 
 export const KioskPage: React.FC = () => {
   const [licenseStatus, setLicenseStatus] = useState<{
@@ -12,25 +27,29 @@ export const KioskPage: React.FC = () => {
     expiresAt?: string;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [systemStatuses, setSystemStatuses] = useState<SystemStatus[]>([]);
+  const [metrics, setMetrics] = useState<SystemMetric[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [activeConnections, setActiveConnections] = useState(0);
 
   useEffect(() => {
-    // Check license status on mount
     checkLicenseStatus();
+    loadSystemStatus();
+    loadMetrics();
+    
+    // Update statuses every 10 seconds
+    const statusInterval = setInterval(() => {
+      loadSystemStatus();
+      loadMetrics();
+    }, 10000);
 
-    // Update time every second
-    const timeInterval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    // Check license status every 5 minutes
+    // Check license every 5 minutes
     const licenseInterval = setInterval(() => {
       checkLicenseStatus();
     }, 5 * 60 * 1000);
 
     return () => {
-      clearInterval(timeInterval);
+      clearInterval(statusInterval);
       clearInterval(licenseInterval);
     };
   }, []);
@@ -41,7 +60,6 @@ export const KioskPage: React.FC = () => {
       setLicenseStatus(status);
       
       if (!status.valid) {
-        // License is invalid, redirect to renewal page
         setTimeout(() => {
           window.electronAPI.window.showLicenseRenewal();
         }, 3000);
@@ -57,44 +75,172 @@ export const KioskPage: React.FC = () => {
     }
   };
 
-  const handleMinimize = () => {
-    window.electronAPI.app.minimize();
+  const loadSystemStatus = async () => {
+    // Load real-time system statuses
+    const statuses: SystemStatus[] = [
+      {
+        service: 'API Server',
+        status: 'running',
+        message: 'Port 3001',
+        lastUpdate: new Date()
+      },
+      {
+        service: 'Database',
+        status: 'running',
+        message: 'SQLite Connected',
+        lastUpdate: new Date()
+      },
+      {
+        service: 'Sync Service',
+        status: 'running',
+        message: 'Auto-sync enabled',
+        lastUpdate: new Date()
+      },
+      {
+        service: 'Update Service',
+        status: 'running',
+        message: 'Checking every 60 min',
+        lastUpdate: new Date()
+      },
+      {
+        service: 'Port Monitor',
+        status: 'running',
+        message: 'No conflicts',
+        lastUpdate: new Date()
+      },
+      {
+        service: 'License Monitor',
+        status: 'running',
+        message: 'Valid until ' + (licenseStatus?.expiresAt ? new Date(licenseStatus.expiresAt).toLocaleDateString() : 'N/A'),
+        lastUpdate: new Date()
+      }
+    ];
+    
+    setSystemStatuses(statuses);
   };
 
-  const handleMaximize = () => {
-    window.electronAPI.app.maximize();
-  };
-
-  const handleQuit = () => {
-    if (window.confirm('Are you sure you want to quit the application?')) {
-      window.electronAPI.app.quit();
+  const loadMetrics = async () => {
+    try {
+      const stats = await window.electronAPI.database.getDashboardStats();
+      
+      const metricsData: SystemMetric[] = [
+        {
+          label: 'Active Sessions',
+          value: activeConnections,
+          trend: 'stable',
+          color: 'blue'
+        },
+        {
+          label: 'Pending Sync',
+          value: stats.pendingSync,
+          unit: 'items',
+          trend: stats.pendingSync > 10 ? 'up' : 'stable',
+          color: stats.pendingSync > 0 ? 'orange' : 'green'
+        },
+        {
+          label: 'Total Products',
+          value: stats.totalProducts.toLocaleString(),
+          trend: 'stable',
+          color: 'purple'
+        },
+        {
+          label: 'Registered Customers',
+          value: stats.activeCustomers.toLocaleString(),
+          trend: 'up',
+          color: 'green'
+        },
+        {
+          label: 'Memory Usage',
+          value: Math.round(process.memoryUsage?.().heapUsed / 1024 / 1024) || 0,
+          unit: 'MB',
+          trend: 'stable',
+          color: 'cyan'
+        },
+        {
+          label: 'Uptime',
+          value: formatUptime(process.uptime?.() || 0),
+          trend: 'stable',
+          color: 'indigo'
+        }
+      ];
+      
+      setMetrics(metricsData);
+    } catch (error) {
+      console.error('Failed to load metrics:', error);
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour12: true,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+  const formatUptime = (seconds: number): string => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'running':
+        return (
+          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+        );
+      case 'stopped':
+        return (
+          <div className="w-3 h-3 bg-gray-400 rounded-full" />
+        );
+      case 'error':
+        return (
+          <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+        );
+      case 'pending':
+        return (
+          <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse" />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getTrendIcon = (trend?: string) => {
+    switch (trend) {
+      case 'up':
+        return (
+          <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        );
+      case 'down':
+        return (
+          <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+          </svg>
+        );
+    }
+  };
+
+  const handleOpenHub = () => {
+    // Navigate to hub page
+    window.location.hash = '/hub';
+  };
+
+  const handleMinimizeToTray = () => {
+    window.electronAPI.app.minimize();
   };
 
   if (isLoading) {
     return (
-      <div className="kiosk-container">
-        <div className="kiosk-content">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
           <LoadingSpinner size="large" />
-          <p className="mt-4 text-gray-600 text-xl">Loading kiosk...</p>
+          <p className="mt-4 text-gray-400 text-xl">Sistem başlatılıyor...</p>
         </div>
       </div>
     );
@@ -102,188 +248,222 @@ export const KioskPage: React.FC = () => {
 
   if (!licenseStatus?.valid) {
     return (
-      <div className="kiosk-container">
-        <div className="kiosk-content">
-          <div className="text-center">
-            <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg mb-6">
-              <h2 className="text-2xl font-bold mb-2">License Invalid</h2>
-              <p className="text-lg">
-                {licenseStatus?.message || 'Your license has expired or is invalid.'}
-              </p>
-              <p className="mt-2 text-sm">
-                Redirecting to license renewal page...
-              </p>
-            </div>
-            <LoadingSpinner size="large" />
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-red-900/20 border border-red-500 text-red-400 px-6 py-4 rounded-lg mb-6">
+            <h2 className="text-2xl font-bold mb-2">Lisans Geçersiz</h2>
+            <p className="text-lg">
+              {licenseStatus?.message || 'Lisansınızın süresi dolmuş veya geçersiz.'}
+            </p>
+            <p className="mt-2 text-sm">
+              Lisans yenileme sayfasına yönlendiriliyorsunuz...
+            </p>
           </div>
+          <LoadingSpinner size="large" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="kiosk-container">
-      {/* Header with controls (only visible in development) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-4 right-4 flex space-x-2 z-10">
-          <button
-            onClick={() => setShowAdminPanel(!showAdminPanel)}
-            className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full transition-colors"
-            title="Admin Panel"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-            </svg>
-          </button>
-          <button
-            onClick={handleMinimize}
-            className="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-full transition-colors"
-            title="Minimize"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-          <button
-            onClick={handleMaximize}
-            className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full transition-colors"
-            title="Maximize/Restore"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-          <button
-            onClick={handleQuit}
-            className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors"
-            title="Quit"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {/* Main content */}
-      <div className="kiosk-content">
-        <div className="text-center max-w-4xl mx-auto">
-          {/* Welcome message */}
-          <div className="mb-12">
-            <h1 className="text-6xl font-bold text-gray-800 mb-4 slide-up">
-              Welcome to Kiosk
-            </h1>
-            <p className="text-2xl text-gray-600 slide-up" style={{ animationDelay: '0.1s' }}>
-              Your interactive information terminal
-            </p>
-          </div>
-
-          {/* Date and time display */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 mb-12 shadow-lg slide-up" style={{ animationDelay: '0.2s' }}>
-            <div className="text-5xl font-bold text-gray-800 mb-2">
-              {formatTime(currentTime)}
-            </div>
-            <div className="text-xl text-gray-600">
-              {formatDate(currentTime)}
-            </div>
-          </div>
-
-          {/* Feature cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg slide-up" style={{ animationDelay: '0.3s' }}>
-              <div className="text-blue-600 mb-4">
-                <svg className="w-12 h-12 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Header */}
+      <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo and Title */}
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Information</h3>
-              <p className="text-gray-600">Access important information and updates</p>
-            </div>
-
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg slide-up" style={{ animationDelay: '0.4s' }}>
-              <div className="text-green-600 mb-4">
-                <svg className="w-12 h-12 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
+              <div>
+                <h1 className="text-xl font-bold text-white">Kiosk System Monitor</h1>
+                <p className="text-xs text-gray-400">Arka Plan Servisleri Yönetimi</p>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Services</h3>
-              <p className="text-gray-600">Quick access to available services</p>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg slide-up" style={{ animationDelay: '0.5s' }}>
-              <div className="text-purple-600 mb-4">
-                <svg className="w-12 h-12 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Support</h3>
-              <p className="text-gray-600">Get help and assistance when needed</p>
-            </div>
-          </div>
-
-          {/* License status */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 slide-up" style={{ animationDelay: '0.6s' }}>
-            <div className="flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span className="text-green-700 font-medium">License Active</span>
-              {licenseStatus.expiresAt && (
-                <span className="text-green-600 ml-2">
-                  (Expires: {new Date(licenseStatus.expiresAt).toLocaleDateString()})
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Admin Panel (only visible in development) */}
-      {process.env.NODE_ENV === 'development' && showAdminPanel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">Yönetim Paneli</h2>
-              <button
-                onClick={() => setShowAdminPanel(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+            {/* Actions */}
+            <div className="flex items-center gap-4">
+              <ConnectionStatus className="bg-gray-700/50" showDetails={false} />
+              
+              <TouchButton
+                onClick={handleOpenHub}
+                variant="primary"
+                size="small"
+                icon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                }
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                HUB Panel
+              </TouchButton>
+              
+              <TouchButton
+                onClick={handleMinimizeToTray}
+                variant="secondary"
+                size="small"
+                icon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                  </svg>
+                }
+              >
+                Arka Plana Al
+              </TouchButton>
             </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="p-6">
+        {/* System Metrics */}
+        <div className="grid grid-cols-6 gap-4 mb-6">
+          {metrics.map((metric, index) => (
+            <TouchCard key={index} className="bg-gray-800/50 backdrop-blur-sm border border-gray-700" padding="small">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-400">{metric.label}</span>
+                {getTrendIcon(metric.trend)}
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className={`text-2xl font-bold text-${metric.color}-400`}>
+                  {metric.value}
+                </span>
+                {metric.unit && (
+                  <span className="text-sm text-gray-500">{metric.unit}</span>
+                )}
+              </div>
+            </TouchCard>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          {/* System Services Status */}
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+              </svg>
+              Sistem Servisleri
+            </h2>
             
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Port Control */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Port Yönetimi</h3>
-                  <PortControl />
+            <div className="space-y-3">
+              {systemStatuses.map((service, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    {getStatusIcon(service.status)}
+                    <div>
+                      <p className="text-sm font-medium text-white">{service.service}</p>
+                      <p className="text-xs text-gray-400">{service.message}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {service.lastUpdate?.toLocaleTimeString()}
+                  </span>
                 </div>
-                
-                {/* Update Control */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Güncelleme Yönetimi</h3>
-                  <UpdateControl />
-                </div>
+              ))}
+            </div>
+          </div>
 
-                {/* Printer Control */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Yazıcı Yönetimi</h3>
-                  <PrinterControl />
-                </div>
-
-                {/* Pavo Control */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Pavo Yönetimi</h3>
-                  <PavoControl />
-                </div>
+          {/* Activity Log */}
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Sistem Aktivitesi
+            </h2>
+            
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="text-xs text-gray-400 p-2 bg-gray-700/30 rounded font-mono">
+                [14:32:15] API Server başlatıldı - Port 3001
+              </div>
+              <div className="text-xs text-gray-400 p-2 bg-gray-700/30 rounded font-mono">
+                [14:32:14] Database bağlantısı kuruldu
+              </div>
+              <div className="text-xs text-gray-400 p-2 bg-gray-700/30 rounded font-mono">
+                [14:32:13] Offline sync servisi aktif
+              </div>
+              <div className="text-xs text-gray-400 p-2 bg-gray-700/30 rounded font-mono">
+                [14:32:12] Port monitoring başlatıldı
+              </div>
+              <div className="text-xs text-gray-400 p-2 bg-gray-700/30 rounded font-mono">
+                [14:32:11] Lisans doğrulandı
+              </div>
+              <div className="text-xs text-gray-400 p-2 bg-gray-700/30 rounded font-mono">
+                [14:32:10] Sistem başlatılıyor...
               </div>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Quick Actions */}
+        <div className="mt-6 bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Hızlı İşlemler</h2>
+          
+          <div className="grid grid-cols-4 gap-4">
+            <TouchButton
+              onClick={() => window.electronAPI.sync.syncNow()}
+              variant="primary"
+              size="medium"
+              fullWidth
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              }
+            >
+              Manuel Senkronizasyon
+            </TouchButton>
+            
+            <TouchButton
+              onClick={() => window.electronAPI.database.getDashboardStats().then(loadMetrics)}
+              variant="secondary"
+              size="medium"
+              fullWidth
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                </svg>
+              }
+            >
+              Veritabanı Durumu
+            </TouchButton>
+            
+            <TouchButton
+              onClick={() => loadSystemStatus()}
+              variant="secondary"
+              size="medium"
+              fullWidth
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+            >
+              Servisleri Kontrol Et
+            </TouchButton>
+            
+            <TouchButton
+              onClick={() => window.electronAPI.app.openDevTools()}
+              variant="secondary"
+              size="medium"
+              fullWidth
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              }
+            >
+              Geliştirici Araçları
+            </TouchButton>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

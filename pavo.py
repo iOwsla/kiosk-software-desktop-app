@@ -582,7 +582,7 @@ def get_local_network():
         
         print(f"➤ Mevcut IP: {local_ip}")
         
-        # IP'den ağ adresini çıkar (örn: 192.168.1.100 -> 192.168.1)
+        # IP'den ağ adresini çıkar (örn: 192.168.1.2180 -> 192.168.1)
         if local_ip.startswith('192.168.'):
             network_base = '.'.join(local_ip.split('.')[:3])
             return network_base

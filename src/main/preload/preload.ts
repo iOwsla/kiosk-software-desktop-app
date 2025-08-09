@@ -44,6 +44,7 @@ interface ElectronAPI {
     showKiosk: () => Promise<void>;
     showLicenseInput: () => Promise<void>;
     showLicenseRenewal: () => Promise<void>;
+    showAdminPanel?: () => Promise<void>;
   };
   
   // App operations
@@ -76,6 +77,40 @@ interface ElectronAPI {
     stopAutoCheck: () => Promise<{ success: boolean }>;
     setSettings: (settings: { autoDownload?: boolean; autoInstall?: boolean }) => Promise<{ success: boolean; settings: any }>;
     getInfo: () => Promise<UpdateInfo>;
+  };
+  
+  // Database operations
+  database: {
+    searchProducts: (query: string) => Promise<any[]>;
+    getProductByBarcode: (barcode: string) => Promise<any | null>;
+    saveTransaction: (transaction: any) => Promise<any>;
+    searchCustomers: (query: string) => Promise<any[]>;
+    getDashboardStats: () => Promise<{
+      todayTransactions: number;
+      todayRevenue: number;
+      totalProducts: number;
+      activeCustomers: number;
+      pendingSync: number;
+    }>;
+    getPendingSyncCount: () => Promise<number>;
+  };
+  
+  // Sync operations
+  sync: {
+    getStatus: () => Promise<{
+      isSyncing: boolean;
+      isOnline: boolean;
+      lastSync: Date | null;
+      pendingItems: number;
+    }>;
+    syncNow: () => Promise<{
+      success: boolean;
+      syncedItems: number;
+      failedItems: number;
+      errors: string[];
+      timestamp: Date;
+    }>;
+    getPendingCount: () => Promise<number>;
   };
   
   // Event listeners for notifications
@@ -194,6 +229,37 @@ const electronAPI: ElectronAPI = {
     
     getInfo: () => 
       ipcRenderer.invoke(IPC_CHANNELS.UPDATE_GET_INFO)
+  },
+  
+  database: {
+    searchProducts: (query: string) => 
+      ipcRenderer.invoke('database:searchProducts', query),
+    
+    getProductByBarcode: (barcode: string) => 
+      ipcRenderer.invoke('database:getProductByBarcode', barcode),
+    
+    saveTransaction: (transaction: any) => 
+      ipcRenderer.invoke('database:saveTransaction', transaction),
+    
+    searchCustomers: (query: string) => 
+      ipcRenderer.invoke('database:searchCustomers', query),
+    
+    getDashboardStats: () => 
+      ipcRenderer.invoke('database:getDashboardStats'),
+    
+    getPendingSyncCount: () => 
+      ipcRenderer.invoke('sync:getPendingCount')
+  },
+  
+  sync: {
+    getStatus: () => 
+      ipcRenderer.invoke('sync:getStatus'),
+    
+    syncNow: () => 
+      ipcRenderer.invoke('sync:syncNow'),
+    
+    getPendingCount: () => 
+      ipcRenderer.invoke('sync:getPendingCount')
   },
   
   on: {
