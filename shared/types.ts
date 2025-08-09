@@ -104,15 +104,26 @@ export interface USBPrinterInfo {
   status?: string;
 }
 
-export interface PrintElementText {
-  type: 'text';
-  content: string;
-  align?: 'left' | 'center' | 'right';
-  bold?: boolean;
-  underline?: boolean;
-}
+export interface PrintElementText { type: 'text'; content: string; align?: 'left' | 'center' | 'right'; bold?: boolean; underline?: boolean; }
+export interface PrintElementHeader { type: 'header'; content: string; align?: 'left' | 'center' | 'right'; }
+export interface PrintElementImage { type: 'image'; imageData: string; align?: 'left' | 'center' | 'right'; algorithm?: 'threshold' | 'floydsteinberg'; threshold?: number; }
+export interface PrintElementBarcode { type: 'barcode'; data: string; symbology?: 'code128' | 'ean13' | 'ean8' | 'upc' | 'itf' | 'code39'; height?: number; width?: number; showText?: boolean; align?: 'left' | 'center' | 'right'; }
+export interface PrintElementQRCode { type: 'qrcode'; data: string; model?: 1 | 2; size?: number; errorlevel?: 'l' | 'm' | 'q' | 'h'; align?: 'left' | 'center' | 'right'; }
+export interface PrintElementTable { type: 'table'; columns: string[]; rows: string[][]; }
+export interface PrintElementLine { type: 'line'; char?: string; length?: number; align?: 'left' | 'center' | 'right'; }
+export interface PrintElementNewline { type: 'newline'; count?: number; }
+export interface PrintElementCut { type: 'cut'; }
 
-export type PrintElement = PrintElementText; // genişletilebilir: image, barcode, qrcode
+export type PrintElement =
+  | PrintElementText
+  | PrintElementHeader
+  | PrintElementImage
+  | PrintElementBarcode
+  | PrintElementQRCode
+  | PrintElementTable
+  | PrintElementLine
+  | PrintElementNewline
+  | PrintElementCut;
 
 export interface PrintJobRequest {
   printerId: string;
