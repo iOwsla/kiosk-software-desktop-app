@@ -21,6 +21,8 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
   const [sampleType, setSampleType] = useState<'receipt' | 'label' | 'test'>('receipt');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [base64Input, setBase64Input] = useState<string>('');
+  const [inputMethod, setInputMethod] = useState<'file' | 'base64'>('file');
 
   const refresh = async () => {
     if (!window.electronAPI?.printer) return;
@@ -229,6 +231,55 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
       setError('Resim yüklenirken hata oluştu');
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleBase64Input = (value: string) => {
+    setBase64Input(value);
+    
+    if (!value.trim()) {
+      setSelectedImage(null);
+      setImagePreview(null);
+      setError(null);
+      return;
+    }
+
+    try {
+      // Base64 validation ve format düzeltme
+      let base64String = value.trim();
+      
+      // Data URI format kontrol
+      if (!base64String.startsWith('data:')) {
+        // Sadece base64 string ise data URI formatına çevir
+        if (base64String.match(/^[A-Za-z0-9+/=]+$/)) {
+          base64String = `data:image/png;base64,${base64String}`;
+        } else {
+          setError('Geçersiz base64 formatı');
+          return;
+        }
+      }
+
+      // Base64 decode test
+      const base64Data = base64String.split(',')[1];
+      if (base64Data) {
+        atob(base64Data); // Base64 geçerliliği test
+        setSelectedImage(base64String);
+        setImagePreview(base64String);
+        setError(null);
+      } else {
+        setError('Base64 data bulunamadı');
+      }
+    } catch (e) {
+      setError('Geçersiz base64 string');
+      setSelectedImage(null);
+      setImagePreview(null);
+    }
+  };
+
+  const clearImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setBase64Input('');
+    setError(null);
   };
 
   const handlePrintImage = async () => {
@@ -611,27 +662,79 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
                   <span>📁</span>
                   <span>Resim Yükle ve Yazdır</span>
                 </h4>
+
+                {/* Input Method Selector */}
+                <div className="mb-6">
+                  <div className="flex space-x-4 p-1 bg-gray-100 rounded-lg">
+                    <button
+                      onClick={() => {
+                        setInputMethod('file');
+                        clearImage();
+                      }}
+                      className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors duration-200 flex items-center justify-center space-x-2 ${
+                        inputMethod === 'file'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      <span>📁</span>
+                      <span>Dosya Yükle</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInputMethod('base64');
+                        clearImage();
+                      }}
+                      className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors duration-200 flex items-center justify-center space-x-2 ${
+                        inputMethod === 'base64'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      <span>🔤</span>
+                      <span>Base64 String</span>
+                    </button>
+                  </div>
+                </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Upload Area */}
+                  {/* Input Area */}
                   <div>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors duration-200">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        id="image-upload"
-                      />
-                      <label htmlFor="image-upload" className="cursor-pointer">
-                        <div className="text-4xl mb-4">📷</div>
-                        <p className="text-gray-600 font-medium mb-2">Resim seçmek için tıklayın</p>
-                        <p className="text-sm text-gray-500">PNG, JPG, GIF (Max: 5MB)</p>
-                      </label>
-                    </div>
+                    {inputMethod === 'file' ? (
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors duration-200">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="image-upload"
+                        />
+                        <label htmlFor="image-upload" className="cursor-pointer">
+                          <div className="text-4xl mb-4">📷</div>
+                          <p className="text-gray-600 font-medium mb-2">Resim seçmek için tıklayın</p>
+                          <p className="text-sm text-gray-500">PNG, JPG, GIF (Max: 5MB)</p>
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Base64 String Girin:
+                        </label>
+                        <textarea
+                          value={base64Input}
+                          onChange={(e) => handleBase64Input(e.target.value)}
+                          placeholder="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA... veya sadece base64 string"
+                          className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-xs font-mono"
+                        />
+                        <div className="text-xs text-gray-500">
+                          <p>• Data URI formatı: data:image/png;base64,...</p>
+                          <p>• Veya sadece base64 string (otomatik PNG olarak işlenir)</p>
+                        </div>
+                      </div>
+                    )}
                     
                     {selectedImage && (
-                      <div className="mt-4">
+                      <div className="mt-4 space-y-2">
                         <button
                           onClick={handlePrintImage}
                           disabled={isLoading || !active}
@@ -639,6 +742,13 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
                         >
                           <span>🖨️</span>
                           <span>Resmi Yazdır</span>
+                        </button>
+                        <button
+                          onClick={clearImage}
+                          className="w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
+                        >
+                          <span>🗑️</span>
+                          <span>Temizle</span>
                         </button>
                       </div>
                     )}
