@@ -223,3 +223,32 @@ export const PRINTER_IPC = {
   DISCOVER_USB: 'printer:discover-usb',
   DISCOVER_IP: 'printer:discover-ip'
 } as const;
+
+// Pavo Types
+export interface PavoConfig {
+  ipAddress: string;
+  port: number;
+  serialNumber?: string;
+  fingerPrint?: string;
+  kioskSerialNumber?: string;
+}
+
+export type HttpProtocol = 'http' | 'https';
+export type HttpMethod = 'GET' | 'POST';
+
+export interface PavoRequestPayload {
+  protocol: HttpProtocol;
+  method: HttpMethod;
+  endPoint: string;
+  meta: Record<string, unknown>;
+}
+
+export interface PavoResponse<T = unknown> {
+  success: boolean;
+  data: T | null;
+  error?: string | null;
+  meta: Record<string, unknown>;
+}
+
+export interface PavoScanRequest { base?: string; start?: number; end?: number; }
+export interface PavoScanResult { devices: string[]; totalScanned: number; }

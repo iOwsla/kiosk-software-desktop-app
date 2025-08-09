@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { UpdateControl } from '../components/UpdateControl';
 import { PortControl } from '../components/PortControl';
+import { PavoControl } from '../components/PavoControl';
 import { PrinterControl } from '../components/PrinterControl';
 
 export const KioskPage: React.FC = () => {
@@ -271,6 +272,12 @@ export const KioskPage: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Yazıcı Yönetimi</h3>
                   <PrinterControl />
+                </div>
+
+                {/* Pavo Control */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Pavo Yönetimi</h3>
+                  <PavoControl />
                 </div>
               </div>
             </div>

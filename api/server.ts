@@ -5,6 +5,7 @@ import { licenseRouter } from './routes/license';
 import { portRouter } from './routes/port';
 import { updateRouter } from './routes/update';
 import { printerRouter } from './routes/printer';
+import { pavoRouter } from './routes/pavo';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 
@@ -54,6 +55,7 @@ export class APIServer {
     this.app.use('/api/port', portRouter);
     this.app.use('/api/update', updateRouter);
     this.app.use('/api/printer', printerRouter);
+    this.app.use('/api/pavo', pavoRouter);
 
     // 404 handler
     this.app.use('*', (req, res) => {
