@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Separator } from '../components/ui/separator';
-import { CheckCircle2, Package2, Shield, AlertCircle, Printer, CreditCard, Settings, Store, Download, RefreshCw, Sparkles, Check, X } from 'lucide-react';
+import { Printer, CreditCard, Settings, Store, Download, RefreshCw, Sparkles, Check, X, Package2 } from 'lucide-react';
 import { LicenseInputPage } from './LicenseInputPage';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
@@ -11,7 +10,6 @@ const HomePage: React.FC = () => {
   const [version, setVersion] = useState<string>('');
   const [isLicenseValid, setIsLicenseValid] = useState<boolean | null>(null);
   const [isCheckingLicense, setIsCheckingLicense] = useState(true);
-  const [licenseError, setLicenseError] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{
     version?: string;
@@ -43,7 +41,14 @@ const HomePage: React.FC = () => {
     checkLicenseStatus();
 
     // Güncelleme durumunu dinle
-    const handleUpdateStatus = (notification: any) => {
+    interface UpdateNotification {
+      status: string;
+      progress?: number;
+      version?: string;
+      error?: string;
+    }
+    
+    const handleUpdateStatus = (notification: UpdateNotification) => {
       if (notification.status === 'downloading' && notification.progress) {
         setIsDownloading(true);
         setDownloadProgress(notification.progress);
@@ -90,7 +95,6 @@ const HomePage: React.FC = () => {
   const checkLicenseStatus = async () => {
     try {
       setIsCheckingLicense(true);
-      setLicenseError(null);
       
       // Önce kaydedilmiş API key var mı kontrol et
       if (window.electronAPI && window.electronAPI.license) {
@@ -100,10 +104,6 @@ const HomePage: React.FC = () => {
           // Kaydedilmiş key varsa doğrula
           const result = await window.electronAPI.license.verify(savedKey);
           setIsLicenseValid(result.valid);
-          
-          if (!result.valid) {
-            setLicenseError(result.message || 'Lisans geçersiz');
-          }
         } else {
           // Kaydedilmiş key yoksa
           setIsLicenseValid(false);
@@ -111,22 +111,15 @@ const HomePage: React.FC = () => {
       } else {
         // Electron API mevcut değilse
         setIsLicenseValid(false);
-        setLicenseError('Uygulama Electron ortamında çalışmıyor');
       }
     } catch (error) {
       console.error('Lisans kontrolü başarısız:', error);
       setIsLicenseValid(false);
-      setLicenseError('Lisans kontrolü sırasında bir hata oluştu');
     } finally {
       setIsCheckingLicense(false);
     }
   };
 
-  const handleLicenseVerified = () => {
-    // Lisans doğrulandıktan sonra sayfayı yenile
-    setIsLicenseValid(true);
-    setLicenseError(null);
-  };
 
   const checkForUpdates = async () => {
     setIsCheckingUpdate(true);
