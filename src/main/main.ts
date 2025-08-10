@@ -82,10 +82,9 @@ class KioskApp {
         logger.info('API Server started successfully on port 3001');
       } catch (apiError) {
         logger.error('Failed to start API server', { apiError });
-        // Continue without API server in development
-        if (!this.isDev) {
-          throw apiError;
-        }
+        // Continue without API server even in production
+        // API server is not critical for basic app functionality
+        console.error('Warning: API Server could not start, continuing without it');
       }
 
       // Remove menu in production

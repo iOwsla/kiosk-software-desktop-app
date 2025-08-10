@@ -51,7 +51,10 @@ export class WindowManager {
     if (this.isDev) {
       this.kioskWindow.loadURL('http://localhost:3000/');
     } else {
-      this.kioskWindow.loadFile(path.join(__dirname, 'index.html'));
+      // In production, index.html is in the same directory as main.js
+      const indexPath = path.join(__dirname, 'index.html');
+      logger.info('Loading index.html from:', indexPath);
+      this.kioskWindow.loadFile(indexPath);
     }
 
     this.kioskWindow.once('ready-to-show', () => {
@@ -99,7 +102,9 @@ export class WindowManager {
     if (this.isDev) {
       this.licenseInputWindow.loadURL('http://localhost:3000/#/license-input');
     } else {
-      this.licenseInputWindow.loadFile(path.join(__dirname, 'index.html'), { hash: 'license-input' });
+      const indexPath = path.join(__dirname, 'index.html');
+      logger.info('Loading license input page from:', indexPath);
+      this.licenseInputWindow.loadFile(indexPath, { hash: 'license-input' });
     }
 
     this.licenseInputWindow.once('ready-to-show', () => {
@@ -145,7 +150,9 @@ export class WindowManager {
     if (this.isDev) {
       this.licenseRenewalWindow.loadURL('http://localhost:3000/#/license-renewal');
     } else {
-      this.licenseRenewalWindow.loadFile(path.join(__dirname, 'index.html'), { hash: 'license-renewal' });
+      const indexPath = path.join(__dirname, 'index.html');
+      logger.info('Loading license renewal page from:', indexPath);
+      this.licenseRenewalWindow.loadFile(indexPath, { hash: 'license-renewal' });
     }
 
     this.licenseRenewalWindow.once('ready-to-show', () => {

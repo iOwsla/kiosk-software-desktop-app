@@ -1,6 +1,6 @@
 {
   "name": "kiosk-software-desktop-app",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Electron tabanlı kiosk yazılımı - API key lisans doğrulama sistemi",
   "main": "dist/main.js",
   "scripts": {
