@@ -53,7 +53,7 @@ export class WindowManager {
     } else {
       // In production, index.html is in the same directory as main.js
       const indexPath = path.join(__dirname, 'index.html');
-      logger.info('Loading index.html from:', indexPath);
+      logger.info('Loading index.html from', { path: indexPath });
       this.kioskWindow.loadFile(indexPath);
     }
 
@@ -103,7 +103,7 @@ export class WindowManager {
       this.licenseInputWindow.loadURL('http://localhost:3000/#/license-input');
     } else {
       const indexPath = path.join(__dirname, 'index.html');
-      logger.info('Loading license input page from:', indexPath);
+      logger.info('Loading license input page from', { path: indexPath });
       this.licenseInputWindow.loadFile(indexPath, { hash: 'license-input' });
     }
 
@@ -151,7 +151,7 @@ export class WindowManager {
       this.licenseRenewalWindow.loadURL('http://localhost:3000/#/license-renewal');
     } else {
       const indexPath = path.join(__dirname, 'index.html');
-      logger.info('Loading license renewal page from:', indexPath);
+      logger.info('Loading license renewal page from', { path: indexPath });
       this.licenseRenewalWindow.loadFile(indexPath, { hash: 'license-renewal' });
     }
 
