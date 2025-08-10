@@ -1,6 +1,6 @@
 {
   "name": "kiosk-software-desktop-app",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Electron tabanlı kiosk yazılımı - API key lisans doğrulama sistemi",
   "main": "dist/main.js",
   "scripts": {
@@ -147,19 +147,13 @@
     },
     "files": [
       "dist/**/*",
+      "prisma/**/*",
       "node_modules/**/*",
       "package.json",
       "!node_modules/**/test/**",
       "!node_modules/**/*.map",
       "!**/*.ts",
       "!**/*.tsx"
-    ],
-    "extraResources": [
-      {
-        "from": "dist",
-        "to": "app/dist",
-        "filter": ["**/*"]
-      }
     ],
     "mac": {
       "category": "public.app-category.business"
