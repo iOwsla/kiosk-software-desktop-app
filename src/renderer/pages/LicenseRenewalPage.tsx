@@ -145,7 +145,7 @@ export const LicenseRenewalPage: React.FC = () => {
                 autoFocus
               />
               <p className="mt-1 text-xs text-orange-300/60">
-                API anahtarınız "sk_" ile başlamalıdır
+                API anahtarınız &quot;sk_&quot; ile başlamalıdır
               </p>
             </div>
 
