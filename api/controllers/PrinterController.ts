@@ -51,6 +51,35 @@ class PrinterController {
     const list = await printerManager.discoverIPPrinters(req.body);
     res.json({ success: true, data: list });
   };
+
+  // Named Printer Management
+  public setPrinterName = async (req: Request, res: Response) => {
+    const profile = printerManager.setPrinterCustomName(req.body);
+    res.json({ success: true, data: profile });
+  };
+
+  public removePrinterName = async (req: Request, res: Response) => {
+    const { customName } = req.params;
+    const removed = printerManager.removePrinterCustomName(customName);
+    res.json({ success: true, data: { removed } });
+  };
+
+  public getPrinterProfiles = async (_req: Request, res: Response) => {
+    const profiles = printerManager.getPrinterProfiles();
+    res.json({ success: true, data: profiles });
+  };
+
+  public printByName = async (req: Request, res: Response) => {
+    const { printerName } = req.params;
+    const elements = req.body.elements || req.body;
+    
+    const result = await printerManager.printByCustomName({
+      printerName,
+      elements: Array.isArray(elements) ? elements : [elements]
+    });
+    
+    res.json({ success: true, data: result });
+  };
 }
 
 export const printerController = new PrinterController();

@@ -1,48 +1,17 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { LicenseInputPage } from './pages/LicenseInputPage';
-import { KioskPage } from './pages/KioskPage';
-import { KioskHubPage } from './pages/KioskHubPage';
-import { LicenseRenewalPage } from './pages/LicenseRenewalPage';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import HomePage from './pages/HomePage';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { NotificationManager } from './components/NotificationManager';
-import { StatusIndicator } from './components/StatusIndicator';
-import { CompactConnectionStatus } from './components/ConnectionStatus';
 import './styles/globals.css';
-import './styles/touch.css';
 
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <Router>
-        <div className="app min-h-screen bg-gray-50 relative">
-          {/* Status indicators - fixed position */}
-          <div className="fixed top-4 left-4 z-40 flex flex-col gap-2">
-            <StatusIndicator />
-            <CompactConnectionStatus />
-          </div>
-          
-          {/* Notification manager - fixed position */}
-          <NotificationManager />
-          
+        <div className="app min-h-screen">
           <Routes>
-            {/* Default route redirects to license input */}
-            <Route path="/" element={<Navigate to="/license-input" replace />} />
-            
-            {/* License input page */}
-            <Route path="/license-input" element={<LicenseInputPage />} />
-            
-            {/* Main kiosk page */}
-            <Route path="/kiosk" element={<KioskPage />} />
-            
-            {/* New Hub page */}
-            <Route path="/hub" element={<KioskHubPage />} />
-            
-            {/* License renewal page */}
-            <Route path="/license-renewal" element={<LicenseRenewalPage />} />
-            
-            {/* Catch all route */}
-            <Route path="*" element={<Navigate to="/license-input" replace />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="*" element={<HomePage />} />
           </Routes>
         </div>
       </Router>

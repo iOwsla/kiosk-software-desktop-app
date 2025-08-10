@@ -13,6 +13,15 @@ router.post('/print-test', asyncHandler(printerController.printTest));
 router.post('/print', asyncHandler(printerController.printJob));
 router.post('/print-sample', asyncHandler(printerController.printSample));
 router.post('/discover-ip', asyncHandler(printerController.discoverIP));
+
+// Named Printer Management
+router.post('/name', asyncHandler(printerController.setPrinterName));
+router.delete('/name/:customName', asyncHandler(printerController.removePrinterName));
+router.get('/profiles', asyncHandler(printerController.getPrinterProfiles));
+
+// Named Printing Endpoints
+router.post('/print/:printerName', asyncHandler(printerController.printByName));
+
 router.delete('/:id', asyncHandler(printerController.remove));
 
 export { router as printerRouter };

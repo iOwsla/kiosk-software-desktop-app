@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { licenseRouter } from './routes/license';
 import { portRouter } from './routes/port';
 import { updateRouter } from './routes/update';
 import { printerRouter } from './routes/printer';
@@ -54,14 +53,11 @@ export class APIServer {
       res.json({ status: 'OK', timestamp: new Date().toISOString() });
     });
 
-    // API routes
-    this.app.use('/api/license', licenseRouter);
-    this.app.use('/api/port', portRouter);
-    this.app.use('/api/update', updateRouter);
-    this.app.use('/api/printer', printerRouter);
-    this.app.use('/api/pavo', pavoRouter);
+    this.app.use('/hub/port', portRouter);
+    this.app.use('/hub/update', updateRouter);
+    this.app.use('/hub/printer', printerRouter);
+    this.app.use('/hub/pavo', pavoRouter);
 
-    // 404 handler
     this.app.use('*', (req, res) => {
       res.status(404).json({ error: 'Route not found' });
     });

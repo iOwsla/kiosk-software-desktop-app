@@ -1,4 +1,4 @@
-import type { IPPrinterConfig, PrinterDevice, PrinterModuleSettings, PrintElement, PrintJobRequest, IPDiscoveryRange } from '../../../shared/types';
+import type { IPPrinterConfig, PrinterDevice, PrinterModuleSettings, PrintElement, PrintJobRequest, IPDiscoveryRange, PrinterProfile, NamedPrintRequest, PrinterNameUpdateRequest } from '../../../shared/types';
 
 interface RegisteredIPPrinter extends IPPrinterConfig {
   id: string;
@@ -9,6 +9,7 @@ export class PrinterManager {
   private static instance: PrinterManager;
   private printers: Map<string, PrinterDevice> = new Map();
   private ipPrinters: Map<string, RegisteredIPPrinter> = new Map();
+  private printerProfiles: Map<string, PrinterProfile> = new Map(); // customName -> profile
   private activePrinterId: string | null = null;
   private settings: PrinterModuleSettings = { ipEnabled: true, usbEnabled: false };
 
@@ -101,9 +102,89 @@ export class PrinterManager {
   }
 
   public removePrinter(printerId: string): void {
+    // İlgili profilleri de sil
+    for (const [customName, profile] of this.printerProfiles.entries()) {
+      if (profile.printerId === printerId) {
+        this.printerProfiles.delete(customName);
+      }
+    }
     this.printers.delete(printerId);
     this.ipPrinters.delete(printerId);
     if (this.activePrinterId === printerId) this.activePrinterId = null;
+  }
+
+  // Named Printer Management
+  public setPrinterCustomName(request: PrinterNameUpdateRequest): PrinterProfile {
+    const printer = this.printers.get(request.printerId);
+    if (!printer) throw new Error('Yazıcı bulunamadı');
+
+    // Mevcut profil varsa güncelle, yoksa yeni oluştur
+    const existingProfile = Array.from(this.printerProfiles.values())
+      .find(p => p.printerId === request.printerId);
+
+    const now = new Date();
+    const profile: PrinterProfile = {
+      id: existingProfile?.id || `profile_${Date.now()}`,
+      printerId: request.printerId,
+      customName: request.customName.toLowerCase(),
+      description: request.description,
+      isActive: true,
+      createdAt: existingProfile?.createdAt || now,
+      updatedAt: now
+    };
+
+    // Eski profili sil (isim değişirse)
+    if (existingProfile && existingProfile.customName !== profile.customName) {
+      this.printerProfiles.delete(existingProfile.customName);
+    }
+
+    this.printerProfiles.set(profile.customName, profile);
+    
+    // Printer nesnesini güncelle
+    printer.customName = profile.customName;
+    this.printers.set(request.printerId, printer);
+
+    return profile;
+  }
+
+  public removePrinterCustomName(customName: string): boolean {
+    const profile = this.printerProfiles.get(customName.toLowerCase());
+    if (!profile) return false;
+
+    // Printer nesnesinden custom name'i kaldır
+    const printer = this.printers.get(profile.printerId);
+    if (printer) {
+      delete printer.customName;
+      this.printers.set(profile.printerId, printer);
+    }
+
+    this.printerProfiles.delete(customName.toLowerCase());
+    return true;
+  }
+
+  public getPrinterProfiles(): PrinterProfile[] {
+    return Array.from(this.printerProfiles.values())
+      .filter(p => p.isActive)
+      .sort((a, b) => a.customName.localeCompare(b.customName));
+  }
+
+  public getPrinterByCustomName(customName: string): PrinterDevice | null {
+    const profile = this.printerProfiles.get(customName.toLowerCase());
+    if (!profile || !profile.isActive) return null;
+    
+    return this.printers.get(profile.printerId) || null;
+  }
+
+  public async printByCustomName(request: NamedPrintRequest): Promise<{ success: boolean }> {
+    const printer = this.getPrinterByCustomName(request.printerName);
+    if (!printer) {
+      throw new Error(`'${request.printerName}' isimli yazıcı bulunamadı`);
+    }
+
+    return await this.printJob({
+      printerId: printer.id,
+      elements: request.elements
+    });
   }
 
   public async printTest(printerId?: string): Promise<{ success: boolean }>{

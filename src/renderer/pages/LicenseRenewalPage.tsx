@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LoadingSpinner } from '../components/LoadingSpinner';
-import { AlertMessage } from '../components/AlertMessage';
+import { AlertTriangle, Key, RefreshCw, ArrowLeft, Clock, Shield, Info } from 'lucide-react';
 
 export const LicenseRenewalPage: React.FC = () => {
   const [newApiKey, setNewApiKey] = useState('');
@@ -8,30 +7,34 @@ export const LicenseRenewalPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [currentApiKey, setCurrentApiKey] = useState<string | null>(null);
+  const [hardwareInfo, setHardwareInfo] = useState<any>(null);
 
   useEffect(() => {
-    // Get the current API key to show partial information
-    const getCurrentKey = async () => {
+    const initialize = async () => {
       try {
+        // Get hardware info
+        const hwInfo = await window.electronAPI.license.getHardwareInfo();
+        setHardwareInfo(hwInfo);
+
+        // Get current API key
         const savedKey = await window.electronAPI.license.getSavedKey();
         if (savedKey) {
-          // Show only first 8 and last 4 characters
           const masked = savedKey.length > 12 
             ? `${savedKey.substring(0, 8)}...${savedKey.substring(savedKey.length - 4)}`
             : savedKey.substring(0, 8) + '...';
           setCurrentApiKey(masked);
         }
       } catch (error) {
-        console.error('Failed to get current API key:', error);
+        console.error('Initialization failed:', error);
       }
     };
 
-    getCurrentKey();
+    initialize();
   }, []);
 
   const handleRenewLicense = async () => {
     if (!newApiKey.trim()) {
-      setError('Please enter a new API key');
+      setError('Lütfen yeni bir API anahtarı girin');
       return;
     }
 
@@ -43,20 +46,18 @@ export const LicenseRenewalPage: React.FC = () => {
       const result = await window.electronAPI.license.verify(newApiKey);
       
       if (result.valid) {
-        // Save the new API key
         await window.electronAPI.license.saveKey(newApiKey);
-        setSuccess('License renewed successfully! Redirecting to kiosk...');
+        setSuccess('Lisans başarıyla yenilendi! Yönlendiriliyorsunuz...');
         
-        // Redirect to kiosk after a short delay
         setTimeout(() => {
           window.electronAPI.window.showKiosk();
         }, 2000);
       } else {
-        setError(result.message || 'Invalid API key');
+        setError(result.message || 'Geçersiz API anahtarı');
       }
     } catch (error) {
       console.error('License renewal failed:', error);
-      setError('Failed to renew license. Please check your connection and try again.');
+      setError('Lisans yenilenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin.');
     } finally {
       setIsLoading(false);
     }
@@ -67,14 +68,10 @@ export const LicenseRenewalPage: React.FC = () => {
     handleRenewLicense();
   };
 
-  const handleKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleKeyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewApiKey(e.target.value);
-    if (error) {
-      setError(null);
-    }
-    if (success) {
-      setSuccess(null);
-    }
+    if (error) setError(null);
+    if (success) setSuccess(null);
   };
 
   const handleBackToInput = () => {
@@ -82,95 +79,143 @@ export const LicenseRenewalPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-100 p-4">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg p-8 fade-in">
-        <div className="text-center mb-8">
-          <div className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4">
-            <svg className="w-8 h-8 text-red-600 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
+    <div className="h-screen flex items-center justify-center bg-gradient-to-br from-red-900 via-orange-900 to-red-900 p-3">
+      <div className="w-full max-w-md">
+        {/* Warning Header */}
+        <div className="text-center mb-3">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-xl mb-2 animate-pulse">
+            <AlertTriangle className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            License Renewal Required
+          <h1 className="text-xl font-bold text-white mb-1">
+            Lisans Yenileme Gerekli
           </h1>
-          <p className="text-gray-600">
-            Your current license has expired or is invalid. Please enter a new API key to continue.
+          <p className="text-orange-200 text-xs">
+            Mevcut lisansınızın süresi dolmuş veya geçersiz
           </p>
         </div>
 
-        {currentApiKey && (
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-600 mb-1">Current API Key:</p>
-            <p className="font-mono text-sm text-gray-800">{currentApiKey}</p>
-          </div>
-        )}
+        {/* Main Card */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-xl shadow-xl p-3 border border-white/20">
+          {/* Current License Info */}
+          {currentApiKey && (
+            <div className="mb-3 p-2 bg-white/5 rounded-lg border border-white/10">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-orange-300 text-xs font-medium flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Mevcut Lisans
+                </span>
+                <span className="px-2 py-0.5 bg-red-500/20 text-red-300 text-xs rounded-full">
+                  Süresi Dolmuş
+                </span>
+              </div>
+              <p className="font-mono text-white/60 text-xs">{currentApiKey}</p>
+            </div>
+          )}
 
-        {error && (
-          <AlertMessage type="error" message={error} className="mb-6" />
-        )}
+          {/* Alert Messages */}
+          {error && (
+            <div className="mb-3 p-2 bg-red-500/20 border border-red-500/30 rounded-lg flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-red-200 text-xs">{error}</p>
+            </div>
+          )}
 
-        {success && (
-          <AlertMessage type="success" message={success} className="mb-6" />
-        )}
+          {success && (
+            <div className="mb-3 p-2 bg-green-500/20 border border-green-500/30 rounded-lg flex items-start gap-2">
+              <Shield className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+              <p className="text-green-200 text-xs">{success}</p>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="newApiKey" className="block text-sm font-medium text-gray-700 mb-2">
-              New API Key
-            </label>
-            <input
-              id="newApiKey"
-              type="text"
-              value={newApiKey}
-              onChange={handleKeyChange}
-              placeholder="Enter your new API key"
-              className={`license-input ${error ? 'input-error' : ''}`}
-              disabled={isLoading || !!success}
-              autoFocus
-            />
-          </div>
+          {/* Renewal Form */}
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div>
+              <label htmlFor="newApiKey" className="flex items-center gap-2 text-xs font-medium text-orange-200 mb-2">
+                <Key className="w-3 h-3" />
+                Yeni API Anahtarı
+              </label>
+              <input
+                id="newApiKey"
+                type="text"
+                value={newApiKey}
+                onChange={handleKeyInput}
+                placeholder="sk_xxxxxxxxxxxxxxxxxxxxxxxx"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all font-mono"
+                disabled={isLoading || !!success}
+                autoFocus
+              />
+              <p className="mt-1 text-xs text-orange-300/60">
+                API anahtarınız "sk_" ile başlamalıdır
+              </p>
+            </div>
 
-          <div className="space-y-3">
-            <button
-              type="submit"
-              disabled={isLoading || !newApiKey.trim() || !!success}
-              className="w-full btn-primary py-3 text-lg relative"
-            >
-              {isLoading ? (
-                <>
-                  <LoadingSpinner className="mr-2" />
-                  Renewing License...
-                </>
-              ) : success ? (
-                'License Renewed ✓'
-              ) : (
-                'Renew License'
-              )}
-            </button>
+            <div className="space-y-2">
+              <button
+                type="submit"
+                disabled={isLoading || !newApiKey.trim() || !!success}
+                className="w-full py-2 px-3 bg-gradient-to-r from-orange-600 to-red-600 text-white text-sm font-semibold rounded-lg shadow-lg hover:from-orange-700 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center">
+                    <RefreshCw className="w-4 h-4 animate-spin mr-1" />
+                    Lisans Yenileniyor...
+                  </span>
+                ) : success ? (
+                  <span className="flex items-center justify-center">
+                    <Shield className="w-4 h-4 mr-1" />
+                    Lisans Yenilendi
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center">
+                    <RefreshCw className="w-4 h-4 mr-1" />
+                    Lisansı Yenile
+                  </span>
+                )}
+              </button>
 
-            <button
-              type="button"
-              onClick={handleBackToInput}
-              disabled={isLoading}
-              className="w-full btn-secondary py-3 text-lg"
-            >
-              Back to License Input
-            </button>
-          </div>
-        </form>
+              <button
+                type="button"
+                onClick={handleBackToInput}
+                disabled={isLoading}
+                className="w-full py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-lg border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Lisans Girişine Dön
+              </button>
+            </div>
+          </form>
 
-        <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">Need Help?</h3>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Contact your system administrator</li>
-            <li>• Check your license renewal email</li>
-            <li>• Verify your internet connection</li>
+          {/* Device Info */}
+          {hardwareInfo && (
+            <div className="mt-3 p-2 bg-white/5 rounded-lg border border-white/10">
+              <div className="flex items-center gap-1 mb-1">
+                <Info className="w-3 h-3 text-orange-400" />
+                <span className="text-orange-300 text-xs font-medium">Cihaz Bilgileri</span>
+              </div>
+              <p className="text-white/50 text-xs font-mono">
+                ID: {hardwareInfo.hwid?.substring(0, 16)}...
+              </p>
+              <p className="text-white/50 text-xs mt-0.5">
+                {hardwareInfo.hostname} • {hardwareInfo.platform}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Help Section */}
+        <div className="mt-3 bg-white/5 backdrop-blur-xl rounded-lg p-2 border border-white/10">
+          <h3 className="text-xs font-medium text-orange-300 mb-1">Yardıma mı ihtiyacınız var?</h3>
+          <ul className="text-xs text-white/60 space-y-0.5">
+            <li>• Sistem yöneticinizle iletişime geçin</li>
+            <li>• Lisans yenileme e-postanızı kontrol edin</li>
+            <li>• İnternet bağlantınızı doğrulayın</li>
           </ul>
         </div>
 
-        <div className="mt-6 text-center">
-          <p className="text-xs text-gray-500">
-            License verification is required to continue using this application
+        {/* Footer */}
+        <div className="mt-2 text-center">
+          <p className="text-white/40 text-xs">
+            Uygulamayı kullanmaya devam etmek için lisans doğrulaması gereklidir
           </p>
         </div>
       </div>

@@ -19,16 +19,14 @@ export class WindowManager {
       return;
     }
 
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { width, height } = primaryDisplay.workAreaSize;
-
     this.kioskWindow = new BrowserWindow({
-      width,
-      height,
+      width: 800,
+      height: 600,
+      center: true,
       fullscreen: false,
       kiosk: false,
       frame: true,
-      resizable: true,
+      resizable: false,
       alwaysOnTop: false,
       skipTaskbar: false,
       webPreferences: {
@@ -49,11 +47,11 @@ export class WindowManager {
       }
     });
 
-    // Load the kiosk page
+    // Load the home page
     if (this.isDev) {
-      this.kioskWindow.loadURL('http://localhost:3000/#/kiosk');
+      this.kioskWindow.loadURL('http://localhost:3000/');
     } else {
-      this.kioskWindow.loadFile(path.join(__dirname, 'index.html'), { hash: 'kiosk' });
+      this.kioskWindow.loadFile(path.join(__dirname, 'index.html'));
     }
 
     this.kioskWindow.once('ready-to-show', () => {
@@ -82,12 +80,12 @@ export class WindowManager {
     }
 
     this.licenseInputWindow = new BrowserWindow({
-      width: 500,
-      height: 400,
+      width: 800,
+      height: 600,
       center: true,
       resizable: false,
       frame: true,
-      alwaysOnTop: true,
+      alwaysOnTop: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -128,12 +126,12 @@ export class WindowManager {
     }
 
     this.licenseRenewalWindow = new BrowserWindow({
-      width: 600,
-      height: 500,
+      width: 800,
+      height: 600,
       center: true,
       resizable: false,
       frame: true,
-      alwaysOnTop: true,
+      alwaysOnTop: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,

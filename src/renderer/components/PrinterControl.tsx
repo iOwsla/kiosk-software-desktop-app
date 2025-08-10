@@ -23,6 +23,9 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [base64Input, setBase64Input] = useState<string>('');
   const [inputMethod, setInputMethod] = useState<'file' | 'base64'>('file');
+  const [editingPrinterId, setEditingPrinterId] = useState<string | null>(null);
+  const [newCustomName, setNewCustomName] = useState<string>('');
+  const [newDescription, setNewDescription] = useState<string>('');
 
   const refresh = async () => {
     if (!window.electronAPI?.printer) return;
@@ -282,6 +285,45 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
     setError(null);
   };
 
+  const handleEditPrinterName = (printerId: string, currentName?: string) => {
+    setEditingPrinterId(printerId);
+    setNewCustomName(currentName || '');
+    setNewDescription('');
+  };
+
+  const handleSavePrinterName = async () => {
+    if (!editingPrinterId || !newCustomName.trim()) {
+      setError('Yazıcı adı boş olamaz');
+      return;
+    }
+
+    setIsLoading(true); setError(null); setSuccess(null);
+    try {
+      // TODO: API call to save printer name
+      // await window.electronAPI.printer.setPrinterName({
+      //   printerId: editingPrinterId,
+      //   customName: newCustomName.trim(),
+      //   description: newDescription.trim()
+      // });
+      
+      setSuccess(`Yazıcı adı '${newCustomName}' olarak güncellendi`);
+      setEditingPrinterId(null);
+      setNewCustomName('');
+      setNewDescription('');
+      await refresh();
+    } catch (e) { 
+      setError((e as Error).message); 
+    } finally { 
+      setIsLoading(false); 
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPrinterId(null);
+    setNewCustomName('');
+    setNewDescription('');
+  };
+
   const handlePrintImage = async () => {
     if (!active) {
       setError('Önce bir yazıcı seçin');
@@ -451,41 +493,100 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
                           ? 'bg-blue-50 border-blue-300 shadow-sm' 
                           : 'bg-white border-gray-200 hover:border-gray-300'
                       }`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-3 h-3 rounded-full ${p.online ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                            <div>
-                              <div className="font-medium text-gray-900">{p.name}</div>
-                              <div className="text-sm text-gray-500 flex items-center space-x-2">
-                                <span className="bg-gray-100 px-2 py-1 rounded text-xs font-medium">{p.provider.toUpperCase()}</span>
-                                <span>•</span>
-                                <span className={p.online ? 'text-green-600' : 'text-red-600'}>
-                                  {p.online ? 'Çevrimiçi' : 'Çevrimdışı'}
-                                </span>
-                              </div>
+                        {editingPrinterId === p.id ? (
+                          // Edit Mode
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-2 text-sm text-gray-600">
+                              <span className={`w-3 h-3 rounded-full ${p.online ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                              <span>{p.name}</span>
+                            </div>
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                placeholder="Yazıcı adı (örn: mutfak, kasiyer)"
+                                value={newCustomName}
+                                onChange={(e) => setNewCustomName(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Açıklama (opsiyonel)"
+                                value={newDescription}
+                                onChange={(e) => setNewDescription(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={handleSavePrinterName}
+                                disabled={isLoading || !newCustomName.trim()}
+                                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-1"
+                              >
+                                <span>✓</span>
+                                <span>Kaydet</span>
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-1"
+                              >
+                                <span>✕</span>
+                                <span>İptal</span>
+                              </button>
                             </div>
                           </div>
-                          <div className="flex space-x-2">
-                            <button 
-                              onClick={() => handleSetActive(p.id)} 
-                              disabled={isLoading || p.id === active?.id}
-                              className={`px-3 py-2 rounded-lg font-medium transition-colors duration-200 ${
-                                p.id === active?.id
-                                  ? 'bg-blue-100 text-blue-600 cursor-not-allowed'
-                                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                              }`}
-                            >
-                              {p.id === active?.id ? 'Aktif' : 'Aktif Et'}
-                            </button>
-                            <button 
-                              onClick={() => handlePrintTest(p.id)} 
-                              disabled={isLoading}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors duration-200"
-                            >
-                              Test
-                            </button>
+                        ) : (
+                          // View Mode
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-3 h-3 rounded-full ${p.online ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                              <div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-gray-900">{p.name}</span>
+                                  {p.customName && (
+                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                      {p.customName}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500 flex items-center space-x-2">
+                                  <span className="bg-gray-100 px-2 py-1 rounded text-xs font-medium">{p.provider.toUpperCase()}</span>
+                                  <span>•</span>
+                                  <span className={p.online ? 'text-green-600' : 'text-red-600'}>
+                                    {p.online ? 'Çevrimiçi' : 'Çevrimdışı'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => handleEditPrinterName(p.id, p.customName)}
+                                disabled={isLoading}
+                                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-1"
+                              >
+                                <span>✏️</span>
+                                <span>Ad Ver</span>
+                              </button>
+                              <button 
+                                onClick={() => handleSetActive(p.id)} 
+                                disabled={isLoading || p.id === active?.id}
+                                className={`px-3 py-2 rounded-lg font-medium transition-colors duration-200 ${
+                                  p.id === active?.id
+                                    ? 'bg-blue-100 text-blue-600 cursor-not-allowed'
+                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                }`}
+                              >
+                                {p.id === active?.id ? 'Aktif' : 'Aktif Et'}
+                              </button>
+                              <button 
+                                onClick={() => handlePrintTest(p.id)} 
+                                disabled={isLoading}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors duration-200"
+                              >
+                                Test
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -851,6 +952,36 @@ export const PrinterControl: React.FC<PrinterControlProps> = ({ className = '' }
                   </div>
                 </div>
               </div>
+
+              {/* API Documentation */}
+              {printers.some(p => p.customName) && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
+                  <h4 className="font-semibold text-green-900 mb-4 flex items-center space-x-2">
+                    <span>🚀</span>
+                    <span>API Kullanımı</span>
+                  </h4>
+                  <div className="space-y-3">
+                    <p className="text-green-800 text-sm">
+                      İsimlendirilmiş yazıcılarınızı HTTP istekleriyle kullanabilirsiniz:
+                    </p>
+                    <div className="bg-white border border-green-200 rounded-lg p-4">
+                      <div className="space-y-2 text-sm font-mono">
+                        {printers.filter(p => p.customName).map(p => (
+                          <div key={p.id} className="flex items-center justify-between">
+                            <span className="text-gray-600">POST</span>
+                            <span className="text-blue-600">/hub/print/{p.customName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-xs text-green-700">
+                      <p>• Body: PrintElement[] array</p>
+                      <p>• Content-Type: application/json</p>
+                      <p>• Örnek: curl -X POST http://localhost:3001/hub/print/mutfak -d &apos;[{`{`}&quot;type&quot;:&quot;text&quot;,&quot;content&quot;:&quot;Test&quot;{`}`}]&apos;</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

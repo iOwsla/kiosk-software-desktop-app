@@ -8,9 +8,7 @@ const pavoConfig: PavoConfig = {
   port: 4567
 };
 
-// Pavo durum yönetimi (eşleşme, sıra no, meşguliyet)
 let isPaired = false;
-// Sıralı sayaç ve dinamik artış adımı (bazı cihazlar +2 ilerletir)
 let lastTransactionSequence = 1;
 let isBusy = false;
 const ALLOWED_DURING_BUSY = new Set(['AbortCurrentPayment', 'GetSaleResult', 'GetCancellationResult']);
@@ -72,7 +70,6 @@ export class PavoController {
     const port = body.port ?? 4567;
     const timeout = Math.max(100, Math.min(1000, body.timeoutMs ?? 200));
     const hosts = Array.from({ length: end - start + 1 }, (_, i) => `${base}.${start + i}`);
-    // Paralel taramada bağlantı sayısını sınırlayalım (50)
     const concurrency = 50;
     const results: boolean[] = [];
     for (let i = 0; i < hosts.length; i += concurrency) {
@@ -97,9 +94,7 @@ export class PavoController {
       const baseUrl = `${reqBody.protocol}://${ip}:${port}`;
       const url = `${baseUrl}/${reqBody.endPoint}`;
 
-      // pavo.py make_request ile aynı TransactionHandle yapısı
       const nowIso = new Date().toISOString();
-      // TransactionSequence kuralı: Pairing mevcut değerle, diğer istekler +1
       const isPairing = reqBody.endPoint === 'Pairing';
       const currentSeq = deviceState ? deviceState.lastTransactionSequence : lastTransactionSequence;
       const requestedSequenceBase = isPairing ? currentSeq : (currentSeq + 1);
@@ -120,9 +115,6 @@ export class PavoController {
         return wrapped;
       };
 
-      // HTTPS doğrulamasını kapatma (pavo.py verify=false eşdeğeri) - aşağıda axios çağrısında ayarlanıyor
-
-      // Meşguliyet kontrolü (istisnalar hariç)
       if (isBusy && !ALLOWED_DURING_BUSY.has(reqBody.endPoint)) {
         return res.status(423).json({ success: false, data: null, error: 'Cihaz Meşgul (20)', meta: {} });
       }
@@ -133,13 +125,11 @@ export class PavoController {
 
       let axiosResponse;
       try {
-        // Agents: keepAlive kapalı, bazı gömülü cihazlarda gerekli
         const httpAgent = new (await import('http')).Agent({ keepAlive: false });
         const httpsAgent = reqBody.protocol === 'https'
           ? new (await import('https')).Agent({ keepAlive: false, rejectUnauthorized: false })
           : undefined;
 
-        // Tekrarlı istek yapan yardımcı fonksiyon
         const sendWithSequence = async (sequence: number) => {
           const payload = buildPayload(sequence);
           const response = await axios.request({
@@ -160,19 +150,14 @@ export class PavoController {
           return response;
         };
 
-        // İlk deneme
         axiosResponse = await sendWithSequence(requestedSequenceBase);
-
-        console.log(axiosResponse.data);
 
         const firstHasError = axiosResponse.data?.ErrorCode == 73;
         const shouldRetry = firstHasError;
         if (shouldRetry) {
-          // Sequence +1 ile ikinci deneme (kullanıcıya yansıtma yok)
           const retrySequence = requestedSequenceBase + 1;
           const retryResponse = await sendWithSequence(retrySequence);
           axiosResponse = retryResponse;
-          // lastTransactionSequence güncellemesini altta genel mantık yapacak
         }
       } finally {
         if (!isPairing && !ALLOWED_DURING_BUSY.has(reqBody.endPoint)) {
@@ -183,7 +168,6 @@ export class PavoController {
       const success = !(axiosResponse.data?.HasError ?? (axiosResponse.status < 200 || axiosResponse.status >= 300));
       const out: PavoResponse = { success, data: axiosResponse.data, error: success ? null : 'Request failed', meta: {} };
 
-      // Cihaz yanıtında TransactionHandle varsa ona senkron ol
       const returnedSeq = axiosResponse?.data?.TransactionHandle?.TransactionSequence;
       if (typeof returnedSeq === 'number' && Number.isFinite(returnedSeq)) {
         if (deviceState) {
@@ -192,9 +176,6 @@ export class PavoController {
           lastTransactionSequence = returnedSeq;
         }
       } else {
-        // Başarı veya başarısızlık durumunda, son denemede kullanılan sequence'i temel al
-        // İlk deneme başarılı olmadıysa ikinci deneme yapılmıştır ve payload'ta +1 kullanılmıştır
-        // axiosResponse.config.data içinde en son gönderilen payload bulunur
         try {
           const sent = typeof axiosResponse.config.data === 'string' ? JSON.parse(axiosResponse.config.data) : axiosResponse.config.data;
           const sentSeq = sent?.TransactionHandle?.TransactionSequence;
@@ -208,7 +189,7 @@ export class PavoController {
             if (deviceState) {
               this.deviceStore.update(deviceState.id, { lastTransactionSequence: requestedSequenceBase, isPaired: isPairing ? success : deviceState.isPaired });
             } else {
-              lastTransactionSequence = requestedSequenceBase; // emniyetli varsayılan
+              lastTransactionSequence = requestedSequenceBase;
             }
           }
         } catch {
@@ -235,5 +216,3 @@ export class PavoController {
 }
 
 export const pavoController = new PavoController();
-
-

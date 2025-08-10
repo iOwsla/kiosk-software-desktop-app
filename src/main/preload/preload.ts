@@ -15,15 +15,20 @@ import {
   IPPrinterConfig,
   PrintJobRequest
 } from '../../../shared/types';
+import { HardwareInfo } from '../utils/hwid';
 
 // Define the API that will be exposed to the renderer process
 interface ElectronAPI {
+  // App info
+  getAppVersion: () => Promise<string>;
+  
   // License operations
   license: {
     verify: (apiKey: string) => Promise<LicenseVerificationResponse>;
     getStatus: () => Promise<LicenseVerificationResponse>;
     saveKey: (apiKey: string) => Promise<{ success: boolean; message?: string }>;
     getSavedKey: () => Promise<string | null>;
+    getHardwareInfo: () => Promise<HardwareInfo>;
   };
   
   // Printer operations
@@ -79,40 +84,6 @@ interface ElectronAPI {
     getInfo: () => Promise<UpdateInfo>;
   };
   
-  // Database operations
-  database: {
-    searchProducts: (query: string) => Promise<any[]>;
-    getProductByBarcode: (barcode: string) => Promise<any | null>;
-    saveTransaction: (transaction: any) => Promise<any>;
-    searchCustomers: (query: string) => Promise<any[]>;
-    getDashboardStats: () => Promise<{
-      todayTransactions: number;
-      todayRevenue: number;
-      totalProducts: number;
-      activeCustomers: number;
-      pendingSync: number;
-    }>;
-    getPendingSyncCount: () => Promise<number>;
-  };
-  
-  // Sync operations
-  sync: {
-    getStatus: () => Promise<{
-      isSyncing: boolean;
-      isOnline: boolean;
-      lastSync: Date | null;
-      pendingItems: number;
-    }>;
-    syncNow: () => Promise<{
-      success: boolean;
-      syncedItems: number;
-      failedItems: number;
-      errors: string[];
-      timestamp: Date;
-    }>;
-    getPendingCount: () => Promise<number>;
-  };
-  
   // Event listeners for notifications
   on: {
     portChanged: (callback: (data: PortChangeNotification) => void) => void;
@@ -128,6 +99,8 @@ interface ElectronAPI {
 
 // Create the API object
 const electronAPI: ElectronAPI = {
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+  
   license: {
     verify: (apiKey: string) => 
       ipcRenderer.invoke(IPC_CHANNELS.LICENSE_VERIFY, apiKey),
@@ -139,7 +112,8 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.LICENSE_SAVE_KEY, apiKey),
     
     getSavedKey: () => 
-      ipcRenderer.invoke(IPC_CHANNELS.LICENSE_GET_KEY)
+      ipcRenderer.invoke(IPC_CHANNELS.LICENSE_GET_KEY),
+    getHardwareInfo: () => ipcRenderer.invoke(IPC_CHANNELS.LICENSE_GET_HARDWARE_INFO)
   },
   
   printer: {
@@ -229,37 +203,6 @@ const electronAPI: ElectronAPI = {
     
     getInfo: () => 
       ipcRenderer.invoke(IPC_CHANNELS.UPDATE_GET_INFO)
-  },
-  
-  database: {
-    searchProducts: (query: string) => 
-      ipcRenderer.invoke('database:searchProducts', query),
-    
-    getProductByBarcode: (barcode: string) => 
-      ipcRenderer.invoke('database:getProductByBarcode', barcode),
-    
-    saveTransaction: (transaction: any) => 
-      ipcRenderer.invoke('database:saveTransaction', transaction),
-    
-    searchCustomers: (query: string) => 
-      ipcRenderer.invoke('database:searchCustomers', query),
-    
-    getDashboardStats: () => 
-      ipcRenderer.invoke('database:getDashboardStats'),
-    
-    getPendingSyncCount: () => 
-      ipcRenderer.invoke('sync:getPendingCount')
-  },
-  
-  sync: {
-    getStatus: () => 
-      ipcRenderer.invoke('sync:getStatus'),
-    
-    syncNow: () => 
-      ipcRenderer.invoke('sync:syncNow'),
-    
-    getPendingCount: () => 
-      ipcRenderer.invoke('sync:getPendingCount')
   },
   
   on: {

@@ -87,6 +87,7 @@ export type PrinterProviderType = 'ip' | 'usb';
 export interface PrinterDevice {
   id: string;
   name: string;
+  customName?: string; // Kullanıcı tanımlı isim (mutfak, kasiyer vb.)
   provider: PrinterProviderType;
   online: boolean;
   details?: Record<string, any>;
@@ -135,6 +136,27 @@ export interface PrinterModuleSettings {
   usbEnabled: boolean;
 }
 
+export interface PrinterProfile {
+  id: string;
+  printerId: string;
+  customName: string; // mutfak, kasiyer, depo vb.
+  description?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NamedPrintRequest {
+  printerName: string; // mutfak, kasiyer vb.
+  elements: PrintElement[];
+}
+
+export interface PrinterNameUpdateRequest {
+  printerId: string;
+  customName: string;
+  description?: string;
+}
+
 export interface IPDiscoveryRange {
   base: string; // e.g. "192.168.1"
   start: number; // 1
@@ -171,7 +193,8 @@ export const IPC_CHANNELS = {
   LICENSE_STATUS: 'license:status',
   LICENSE_SAVE_KEY: 'license:save-key',
   LICENSE_GET_KEY: 'license:get-key',
-  
+  LICENSE_GET_HARDWARE_INFO: 'license:get-hardware-info',
+    
   // Window operations
   WINDOW_SHOW_KIOSK: 'window:show-kiosk',
   WINDOW_SHOW_LICENSE_INPUT: 'window:show-license-input',
