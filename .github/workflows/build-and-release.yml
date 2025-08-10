@@ -23,14 +23,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest]
         include:
           - os: windows-latest
             platform: win32
-          - os: ubuntu-latest
-            platform: linux
-          - os: macos-latest
-            platform: darwin
 
     steps:
       - name: Checkout
