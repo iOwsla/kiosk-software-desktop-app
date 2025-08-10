@@ -13,10 +13,22 @@ const HomePage: React.FC = () => {
   const [isCheckingLicense, setIsCheckingLicense] = useState(true);
   const [licenseError, setLicenseError] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [updateInfo, setUpdateInfo] = useState<{
+    version?: string;
+    releaseDate?: string;
+    size?: string;
+    notes?: string[];
+  } | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const handleUpdateDownloaded = async () => {
+    const confirmInstall = window.confirm('Güncelleme indirildi. Uygulamayı şimdi yeniden başlatmak ister misiniz?');
+    if (confirmInstall) {
+      await window.electronAPI.update.install();
+    }
+  };
 
   useEffect(() => {
     // Version bilgisini al
@@ -29,6 +41,50 @@ const HomePage: React.FC = () => {
 
     // Lisans durumunu kontrol et
     checkLicenseStatus();
+
+    // Güncelleme durumunu dinle
+    const handleUpdateStatus = (notification: any) => {
+      if (notification.status === 'downloading' && notification.progress) {
+        setIsDownloading(true);
+        setDownloadProgress(notification.progress);
+      } else if (notification.status === 'downloaded') {
+        setDownloadProgress(100);
+        setIsDownloading(false);
+        handleUpdateDownloaded();
+      } else if (notification.status === 'available') {
+        setUpdateAvailable(true);
+        if (notification.version) {
+          setUpdateInfo(prev => ({
+            ...prev,
+            version: notification.version,
+            size: '~50 MB',
+            notes: prev?.notes || []
+          }));
+        }
+      } else if (notification.status === 'error') {
+        console.error('Güncelleme hatası:', notification.error);
+        setIsDownloading(false);
+        setDownloadProgress(0);
+      }
+    };
+
+    // Event listener'ı ekle
+    window.electronAPI.on.updateStatus(handleUpdateStatus);
+
+    // İlk güncelleme kontrolü (5 saniye gecikmeyle)
+    const initialCheckTimer = setTimeout(() => {
+      checkForUpdates();
+    }, 5000);
+
+    // Otomatik güncelleme kontrolünü başlat (60 dakikada bir)
+    window.electronAPI.update.startAutoCheck(60).catch(console.error);
+
+    // Cleanup
+    return () => {
+      clearTimeout(initialCheckTimer);
+      window.electronAPI.off.updateStatus(handleUpdateStatus);
+      window.electronAPI.update.stopAutoCheck().catch(console.error);
+    };
   }, []);
 
   const checkLicenseStatus = async () => {
@@ -75,44 +131,41 @@ const HomePage: React.FC = () => {
   const checkForUpdates = async () => {
     setIsCheckingUpdate(true);
     try {
-      // Simüle edilmiş güncelleme kontrolü
-      // Gerçek uygulamada window.electronAPI.update.check() gibi bir çağrı yapılabilir
-      setTimeout(() => {
+      const status = await window.electronAPI.update.check();
+      
+      if (status.available) {
         setUpdateAvailable(true);
         setUpdateInfo({
-          version: '1.1.0',
-          releaseDate: '2024-01-15',
-          size: '45 MB',
-          notes: [
-            'Yeni ödeme sistemi entegrasyonu',
-            'Performans iyileştirmeleri',
-            'Hata düzeltmeleri'
-          ]
+          version: status.version,
+          releaseDate: status.releaseDate,
+          notes: status.releaseNotes ? status.releaseNotes.split('\n').filter(n => n.trim()) : [],
+          size: '~50 MB' // Boyut bilgisi API'den gelmiyorsa tahmini
         });
-        setIsCheckingUpdate(false);
-      }, 2000);
+      } else {
+        setUpdateAvailable(false);
+        setUpdateInfo(null);
+      }
     } catch (error) {
       console.error('Güncelleme kontrolü başarısız:', error);
+      setUpdateAvailable(false);
+    } finally {
       setIsCheckingUpdate(false);
     }
   };
 
-  const startDownload = () => {
+  const startDownload = async () => {
     setIsDownloading(true);
     setDownloadProgress(0);
     
-    // Simüle edilmiş indirme işlemi
-    const interval = setInterval(() => {
-      setDownloadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsDownloading(false);
-          // Güncelleme tamamlandı bildirimi
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 500);
+    try {
+      // İndirme işlemini başlat
+      await window.electronAPI.update.download();
+      // Progress güncellemeleri useEffect'teki listener tarafından yönetilecek
+    } catch (error) {
+      console.error('İndirme başlatılamadı:', error);
+      setIsDownloading(false);
+      setDownloadProgress(0);
+    }
   };
 
   // Lisans kontrolü yapılıyor
@@ -300,7 +353,7 @@ const HomePage: React.FC = () => {
                     Güncelleme Detayları
                   </h4>
                   <ul className="space-y-1">
-                    {updateInfo.notes.map((note: string, index: number) => (
+                    {updateInfo.notes?.map((note: string, index: number) => (
                       <li key={index} className="text-white/70 text-xs flex items-start gap-2">
                         <span className="text-green-400 mt-0.5">•</span>
                         <span>{note}</span>
