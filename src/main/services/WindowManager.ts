@@ -1,5 +1,6 @@
-import { BrowserWindow, screen, app } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { logger } from '../../../api/utils/logger';
 
 export class WindowManager {
@@ -55,7 +56,7 @@ export class WindowManager {
       let indexPath = path.join(__dirname, 'index.html');
       
       // If not found in __dirname, try app.getAppPath()
-      if (!require('fs').existsSync(indexPath)) {
+      if (!fs.existsSync(indexPath)) {
         indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
       }
       
@@ -110,7 +111,7 @@ export class WindowManager {
     } else {
       let indexPath = path.join(__dirname, 'index.html');
       
-      if (!require('fs').existsSync(indexPath)) {
+      if (!fs.existsSync(indexPath)) {
         indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
       }
       
@@ -163,7 +164,7 @@ export class WindowManager {
     } else {
       let indexPath = path.join(__dirname, 'index.html');
       
-      if (!require('fs').existsSync(indexPath)) {
+      if (!fs.existsSync(indexPath)) {
         indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
       }
       
