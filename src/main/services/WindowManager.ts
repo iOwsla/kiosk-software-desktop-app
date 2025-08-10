@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen, app } from 'electron';
 import * as path from 'path';
 import { logger } from '../../../api/utils/logger';
 
@@ -51,9 +51,15 @@ export class WindowManager {
     if (this.isDev) {
       this.kioskWindow.loadURL('http://localhost:3000/');
     } else {
-      // In production, index.html is in the same directory as main.js
-      const indexPath = path.join(__dirname, 'index.html');
-      logger.info('Loading index.html from', { path: indexPath });
+      // In production, files might be in resources/app/dist
+      let indexPath = path.join(__dirname, 'index.html');
+      
+      // If not found in __dirname, try app.getAppPath()
+      if (!require('fs').existsSync(indexPath)) {
+        indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+      }
+      
+      logger.info('Loading index.html from', { path: indexPath, dirname: __dirname, appPath: app.getAppPath() });
       this.kioskWindow.loadFile(indexPath);
     }
 
@@ -102,7 +108,12 @@ export class WindowManager {
     if (this.isDev) {
       this.licenseInputWindow.loadURL('http://localhost:3000/#/license-input');
     } else {
-      const indexPath = path.join(__dirname, 'index.html');
+      let indexPath = path.join(__dirname, 'index.html');
+      
+      if (!require('fs').existsSync(indexPath)) {
+        indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+      }
+      
       logger.info('Loading license input page from', { path: indexPath });
       this.licenseInputWindow.loadFile(indexPath, { hash: 'license-input' });
     }
@@ -150,7 +161,12 @@ export class WindowManager {
     if (this.isDev) {
       this.licenseRenewalWindow.loadURL('http://localhost:3000/#/license-renewal');
     } else {
-      const indexPath = path.join(__dirname, 'index.html');
+      let indexPath = path.join(__dirname, 'index.html');
+      
+      if (!require('fs').existsSync(indexPath)) {
+        indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+      }
+      
       logger.info('Loading license renewal page from', { path: indexPath });
       this.licenseRenewalWindow.loadFile(indexPath, { hash: 'license-renewal' });
     }
