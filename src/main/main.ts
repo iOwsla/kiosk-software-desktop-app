@@ -7,8 +7,7 @@ import { PortManager } from './services/PortManager';
 import { UpdateManager } from './services/UpdateManager';
 import { printerManager } from './services/PrinterManager';
 import { logger } from '../../api/utils/logger';
-import { initializeDatabase, disconnectDatabase } from './database/prisma';
-import { PrismaManager } from './database/PrismaManager';
+import { QuickDBManager } from './database/QuickDBManager';
 
 // test
 
@@ -19,7 +18,7 @@ class KioskApp {
   private portManager: PortManager;
   private updateManager: UpdateManager;
   private printerManager = printerManager;
-  private prismaManager: PrismaManager | null = null;
+  private dbManager: QuickDBManager | null = null;
   private isDev: boolean;
 
   constructor() {
@@ -65,9 +64,8 @@ class KioskApp {
     try {
       logger.info('Initializing Kiosk Application');
 
-      // Initialize Prisma database
-      await initializeDatabase();
-      this.prismaManager = PrismaManager.getInstance();
+      // Initialize QuickDB database
+      this.dbManager = QuickDBManager.getInstance();
       logger.info('Database initialized');
 
       // Start port monitoring
@@ -438,9 +436,6 @@ class KioskApp {
       
       // Stop API server
       await this.apiServer.stop();
-      
-      // Disconnect database
-      await disconnectDatabase();
       
       // Close all windows
       this.windowManager.closeAllWindows();

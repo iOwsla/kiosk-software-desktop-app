@@ -13,7 +13,7 @@ export class PrinterManager {
   private activePrinterId: string | null = null;
   private settings: PrinterModuleSettings = { ipEnabled: true, usbEnabled: false };
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): PrinterManager {
     if (!PrinterManager.instance) {
@@ -139,7 +139,7 @@ export class PrinterManager {
     }
 
     this.printerProfiles.set(profile.customName, profile);
-    
+
     // Printer nesnesini güncelle
     printer.customName = profile.customName;
     this.printers.set(request.printerId, printer);
@@ -171,7 +171,7 @@ export class PrinterManager {
   public getPrinterByCustomName(customName: string): PrinterDevice | null {
     const profile = this.printerProfiles.get(customName.toLowerCase());
     if (!profile || !profile.isActive) return null;
-    
+
     return this.printers.get(profile.printerId) || null;
   }
 
@@ -187,7 +187,7 @@ export class PrinterManager {
     });
   }
 
-  public async printTest(printerId?: string): Promise<{ success: boolean }>{
+  public async printTest(printerId?: string): Promise<{ success: boolean }> {
     const target = printerId ? this.printers.get(printerId) : this.getActivePrinter();
     if (!target) throw new Error('Aktif veya hedef yazıcı yok');
     if (target.provider === 'ip') {
@@ -198,7 +198,7 @@ export class PrinterManager {
     throw new Error('USB yazıcı desteği henüz etkin değil');
   }
 
-  public async printJob(req: PrintJobRequest): Promise<{ success: boolean }>{
+  public async printJob(req: PrintJobRequest): Promise<{ success: boolean }> {
     const target = this.printers.get(req.printerId) || this.getActivePrinter();
     if (!target) throw new Error('Yazıcı bulunamadı');
     if (target.provider === 'ip') {
@@ -224,7 +224,7 @@ export class PrinterManager {
   public async printSample(type: 'receipt' | 'label' | 'test', printerId?: string): Promise<{ success: boolean }> {
     const target = printerId ? this.printers.get(printerId) : this.getActivePrinter();
     if (!target) throw new Error('Yazıcı bulunamadı');
-    
+
     const elements = this.generateSampleElements(type);
     const request: PrintJobRequest = { printerId: target.id, elements };
     return await this.printJob(request);
@@ -232,7 +232,7 @@ export class PrinterManager {
 
   private generateSampleElements(type: 'receipt' | 'label' | 'test'): PrintElement[] {
     const currentDate = new Date().toLocaleString('tr-TR');
-    
+
     switch (type) {
       case 'receipt':
         return [
@@ -247,11 +247,13 @@ export class PrinterManager {
           { type: 'text', content: `Tarih: ${currentDate}` },
           { type: 'text', content: 'Fiş No: #2024001' },
           { type: 'newline' },
-          { type: 'table', columns: ['Ürün', 'Adet', 'Fiyat'], rows: [
-            ['Ekmek', '2', '5.00 TL'],
-            ['Süt', '1', '8.50 TL'],
-            ['Yumurta', '1', '15.00 TL']
-          ]},
+          {
+            type: 'table', columns: ['Ürün', 'Adet', 'Fiyat'], rows: [
+              ['Ekmek', '2', '5.00 TL'],
+              ['Süt', '1', '8.50 TL'],
+              ['Yumurta', '1', '15.00 TL']
+            ]
+          },
           { type: 'line', char: '-', length: 32 },
           { type: 'text', content: 'Toplam: 28.50 TL', bold: true, align: 'right' },
           { type: 'text', content: 'KDV: 2.56 TL', align: 'right' },
@@ -261,7 +263,7 @@ export class PrinterManager {
           { type: 'newline', count: 2 },
           { type: 'cut' }
         ];
-      
+
       case 'label':
         return [
           { type: 'text', content: 'ÜRÜN ETİKETİ', bold: true, align: 'center' },
@@ -278,7 +280,7 @@ export class PrinterManager {
           { type: 'newline', count: 2 },
           { type: 'cut' }
         ];
-      
+
       case 'test':
       default:
         return [
@@ -383,7 +385,7 @@ export class PrinterManager {
     }
   }
 
-  private async processBase64Image(base64Data: string): Promise<{ pixels: any; height: number }>{
+  private async processBase64Image(base64Data: string): Promise<{ pixels: any; height: number }> {
     const getPixels = (await import('get-pixels')).default as any;
     const buffer = Buffer.from(base64Data.replace(/^data:image\/[a-z]+;base64,/, ''), 'base64');
     return new Promise((resolve, reject) => {
@@ -408,7 +410,7 @@ export class PrinterManager {
       socket.once('error', reject);
       socket.once('timeout', () => reject(new Error('Timeout')));
       socket.connect(port, host, () => {
-        socket.write(data, (err?: Error | null) => {
+        socket.write(data as any, (err?: Error | null) => {
           if (err) return reject(err);
           socket.end(() => resolve());
         });
@@ -418,5 +420,3 @@ export class PrinterManager {
 }
 
 export const printerManager = PrinterManager.getInstance();
-
-

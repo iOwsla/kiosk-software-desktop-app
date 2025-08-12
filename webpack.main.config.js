@@ -39,7 +39,11 @@ module.exports = {
     __dirname: false,
     __filename: false
   },
-  externals: {
-    'sqlite3': 'commonjs sqlite3'
-  }
+  externals: [
+    'better-sqlite3',
+    'bcrypt',
+    'sqlite3',
+    'mongoose',
+    'mysql2/promise'
+  ].reduce((acc, name) => ({...acc, [name]: `commonjs ${name}`}), {})
 };
