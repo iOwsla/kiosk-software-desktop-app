@@ -39,7 +39,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Run Lint
         run: npm run lint
@@ -51,15 +51,7 @@ jobs:
       - name: Build Electron App
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            npm run dist
-          elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            npm run dist
-          else
-            npm run dist
-          fi
-        shell: bash
+        run: npm run dist
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -67,8 +59,7 @@ jobs:
           name: ${{ matrix.platform }}-build
           path: |
             release/*.exe
-            release/*.AppImage
-            release/*.dmg
+            release/*.exe.blockmap
             release/*.yml
             release/*.yaml
           retention-days: 1
@@ -102,7 +93,6 @@ jobs:
           generate_release_notes: true
           files: |
             release-artifacts/**/*.exe
-            release-artifacts/**/*.AppImage
-            release-artifacts/**/*.dmg
+            release-artifacts/**/*.exe.blockmap
             release-artifacts/**/*.yml
             release-artifacts/**/*.yaml
