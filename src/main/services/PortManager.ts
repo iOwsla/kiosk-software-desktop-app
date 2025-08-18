@@ -1,4 +1,5 @@
 import * as portfinder from 'portfinder';
+import * as net from 'net';
 import { BrowserWindow } from 'electron';
 
 export interface PortStatus {
@@ -9,7 +10,7 @@ export interface PortStatus {
 
 export class PortManager {
   private static instance: PortManager;
-  private currentPort: number = 3000;
+  private currentPort: number = 3005;
   private portCheckInterval: NodeJS.Timeout | null = null;
 
   private constructor() {}
@@ -162,6 +163,79 @@ export class PortManager {
       });
     }
 
+    return results;
+  }
+  
+  /**
+   * Belirtilen IP aralığını ve portu tarar (paralel işleme ile optimize edilmiş)
+   */
+  public async scanIpRange(
+    startIp: string,
+    endIp: string,
+    port: number,
+    onProgress: (result: { ip: string; port: number; status: 'open' | 'closed' }) => void,
+    options?: { concurrency?: number; timeoutMs?: number; batchDelayMs?: number }
+  ): Promise<{ ip: string; port: number; status: 'open' | 'closed' }[]> {
+    const results: { ip: string; port: number; status: 'open' | 'closed' }[] = [];
+    const start = startIp.split('.').map(Number);
+    const end = endIp.split('.').map(Number);
+
+    // IP adreslerini oluştur
+    const ips: string[] = [];
+    for (let i = start[3]; i <= end[3]; i++) {
+      ips.push(`${start[0]}.${start[1]}.${start[2]}.${i}`);
+    }
+
+    console.log(`Port tarama başlatıldı: ${ips.length} IP adresi taranacak (port: ${port})`);
+
+    // Paralel tarama fonksiyonu
+    const timeoutMs = Math.max(200, Math.min(10000, options?.timeoutMs ?? 1500));
+    const scanSingleIp = (ip: string): Promise<{ ip: string; port: number; status: 'open' | 'closed' }> => {
+      return new Promise((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(timeoutMs);
+
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve({ ip, port, status: 'open' });
+        });
+
+        socket.on('timeout', () => {
+          socket.destroy();
+          resolve({ ip, port, status: 'closed' });
+        });
+
+        socket.on('error', (err) => {
+          socket.destroy();
+          // ECONNREFUSED genellikle port kapalı demektir.
+          // Diğer hatalar da kapalı olarak değerlendirilebilir.
+          resolve({ ip, port, status: 'closed' });
+        });
+
+        socket.connect(port, ip);
+      });
+    };
+
+    // Paralel tarama (özelleştirilebilir batch boyutu)
+    const batchSize = Math.max(1, Math.min(256, options?.concurrency ?? 64));
+    const batchDelayMs = Math.max(0, Math.min(200, options?.batchDelayMs ?? 5));
+    for (let i = 0; i < ips.length; i += batchSize) {
+      const batch = ips.slice(i, i + batchSize);
+      const promises = batch.map(ip => scanSingleIp(ip));
+      
+      const batchResults = await Promise.all(promises);
+      for (const result of batchResults) {
+        results.push(result);
+        onProgress(result); // Her bir sonucun ardından ilerlemeyi bildir
+      }
+      
+      // Her batch arasında kısa bir bekleme
+      if (i + batchSize < ips.length && batchDelayMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, batchDelayMs));
+      }
+    }
+
+    console.log(`Port tarama tamamlandı: ${results.length} açık port bulundu`);
     return results;
   }
 

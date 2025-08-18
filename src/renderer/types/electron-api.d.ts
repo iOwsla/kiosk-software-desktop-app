@@ -23,6 +23,7 @@ export interface ElectronAPI {
     findAvailable: (startPort?: number) => Promise<number>;
     scanRange: (startPort: number, endPort: number) => Promise<any>;
     resolveConflict: () => Promise<any>;
+    scanPorts: (options: { startIp: string; endIp: string; port: number; concurrency?: number; timeoutMs?: number; batchDelayMs?: number }) => Promise<{ ip: string; port: number; status: 'open' | 'closed' }[]>;
     setCurrent: (port: number) => Promise<{ success: boolean; port: number }>;
     startMonitoring: () => Promise<{ success: boolean }>;
     stopMonitoring: () => Promise<{ success: boolean }>;

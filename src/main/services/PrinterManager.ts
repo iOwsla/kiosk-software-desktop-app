@@ -73,6 +73,8 @@ export class PrinterManager {
     const hosts: string[] = [];
     for (let i = range.start; i <= range.end; i++) hosts.push(`${range.base}.${i}`);
 
+    console.log(`IP tarama başlatılıyor: ${hosts.length} host taranacak (${range.base}.${range.start}-${range.end}:${port})`);
+
     const net = await import('net');
     const tryHost = (host: string) => new Promise<PrinterDevice | null>((resolve) => {
       const socket = new net.Socket();
@@ -84,10 +86,17 @@ export class PrinterManager {
           resolve(result);
         }
       };
-      socket.setTimeout(1500);
-      socket.once('error', () => done(null));
-      socket.once('timeout', () => done(null));
+      socket.setTimeout(3000); // Timeout'u artırdık
+      socket.once('error', (err) => {
+        console.log(`${host}:${port} - Bağlantı hatası:`, err.message);
+        done(null);
+      });
+      socket.once('timeout', () => {
+        console.log(`${host}:${port} - Timeout`);
+        done(null);
+      });
       socket.connect(port, host, () => {
+        console.log(`${host}:${port} - Yazıcı bulundu!`);
         const id = `ip:${host}:${port}`;
         const device: PrinterDevice = { id, name: `IP Printer ${host}:${port}`, provider: 'ip', online: true, details: { ip: host, port } };
         done(device);
@@ -96,6 +105,8 @@ export class PrinterManager {
 
     const results = await Promise.all(hosts.map(h => tryHost(h)));
     const found = results.filter((d): d is PrinterDevice => !!d);
+    console.log(`IP tarama tamamlandı: ${found.length} yazıcı bulundu`);
+    
     // kaydet ve döndür
     for (const d of found) this.printers.set(d.id, d);
     return found;
@@ -187,11 +198,23 @@ export class PrinterManager {
     });
   }
 
-  public async printTest(printerId?: string): Promise<{ success: boolean }> {
-    const target = printerId ? this.printers.get(printerId) : this.getActivePrinter();
+  public async printTest(printerId?: string, ip?: string, port?: number): Promise<{ success: boolean }> {
+    let target: PrinterDevice | null | undefined = printerId ? this.printers.get(printerId) : this.getActivePrinter();
+    
+    // Eğer printerId ile kayıtlı bir yazıcı bulunamazsa, istek içinde doğrudan ip/port var mı diye kontrol et
+    if (!target && ip && port) {
+      target = {
+        id: `ip:${ip}:${port}`,
+        name: `Direct IP Printer ${ip}:${port}`,
+        provider: 'ip',
+        online: true,
+        details: { ip, port }
+      };
+    }
+    
     if (!target) throw new Error('Aktif veya hedef yazıcı yok');
     if (target.provider === 'ip') {
-      // Basit bir “Hello” gönderme (RAW 9100) – gerçek dünyada ESC/POS encoder ile data üretin
+      // Basit bir "Hello" gönderme (RAW 9100) – gerçek dünyada ESC/POS encoder ile data üretin
       await this.rawIpPrint(target.details!.ip, target.details!.port, Buffer.from('Hello from Kiosk App\n'));
       return { success: true };
     }
@@ -199,8 +222,24 @@ export class PrinterManager {
   }
 
   public async printJob(req: PrintJobRequest): Promise<{ success: boolean }> {
-    const target = this.printers.get(req.printerId) || this.getActivePrinter();
-    if (!target) throw new Error('Yazıcı bulunamadı');
+    let target: PrinterDevice | null | undefined = this.printers.get(req.printerId || '') || this.getActivePrinter();
+
+    // Eğer printerId ile kayıtlı bir yazıcı bulunamazsa, istek içinde doğrudan ip/port var mı diye kontrol et
+    if (!target && req.ip && req.port) {
+      target = {
+        id: `ip:${req.ip}:${req.port}`,
+        name: `Direct IP Printer ${req.ip}:${req.port}`,
+        provider: 'ip',
+        online: true, // varsayılan olarak online kabul et
+        details: { ip: req.ip, port: req.port }
+      };
+    }
+
+    console.log(target);
+
+    if (!target) {
+      throw new Error('Yazıcı bulunamadı veya yazdırma hedefi (printerId ya da ip/port) belirtilmedi.');
+    }
     if (target.provider === 'ip') {
       const encoder = await this.createEncoder();
       encoder.initialize();
@@ -221,12 +260,29 @@ export class PrinterManager {
     throw new Error('USB yazıcı desteği henüz etkin değil');
   }
 
-  public async printSample(type: 'receipt' | 'label' | 'test', printerId?: string): Promise<{ success: boolean }> {
-    const target = printerId ? this.printers.get(printerId) : this.getActivePrinter();
+  public async printSample(type: 'receipt' | 'label' | 'test', printerId?: string, ip?: string, port?: number): Promise<{ success: boolean }> {
+    let target: PrinterDevice | null | undefined = printerId ? this.printers.get(printerId) : this.getActivePrinter();
+    
+    // Eğer printerId ile kayıtlı bir yazıcı bulunamazsa, istek içinde doğrudan ip/port var mı diye kontrol et
+    if (!target && ip && port) {
+      target = {
+        id: `ip:${ip}:${port}`,
+        name: `Direct IP Printer ${ip}:${port}`,
+        provider: 'ip',
+        online: true,
+        details: { ip, port }
+      };
+    }
+    
     if (!target) throw new Error('Yazıcı bulunamadı');
 
     const elements = this.generateSampleElements(type);
-    const request: PrintJobRequest = { printerId: target.id, elements };
+    const request: PrintJobRequest = { 
+      printerId: target.id, 
+      elements,
+      ip: target.details?.ip,
+      port: target.details?.port
+    };
     return await this.printJob(request);
   }
 

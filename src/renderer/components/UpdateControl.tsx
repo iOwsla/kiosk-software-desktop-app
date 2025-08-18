@@ -60,7 +60,7 @@ export const UpdateControl: React.FC<UpdateControlProps> = ({ className = '' }) 
         setError('ElectronAPI mevcut değil - web modunda çalışıyor');
         return;
       }
-      await window.electronAPI.update.check();
+      await window.electronAPI.invoke('update:check');
       setSuccess('Güncelleme kontrolü başlatıldı.');
     } catch (error) {
       setError('Güncelleme kontrolü başarısız: ' + (error as Error).message);
@@ -78,8 +78,8 @@ export const UpdateControl: React.FC<UpdateControlProps> = ({ className = '' }) 
       if (!window.electronAPI?.update) {
         setError('ElectronAPI mevcut değil - web modunda çalışıyor');
         return;
-      }
-      await window.electronAPI.update.download();
+      } 
+      await window.electronAPI.invoke('update:download');
       setSuccess('Güncelleme indirme başlatıldı.');
     } catch (error) {
       setError('Güncelleme indirme başarısız: ' + (error as Error).message);
@@ -98,7 +98,7 @@ export const UpdateControl: React.FC<UpdateControlProps> = ({ className = '' }) 
         setError('ElectronAPI mevcut değil - web modunda çalışıyor');
         return;
       }
-      await window.electronAPI.update.install();
+      await window.electronAPI.invoke('update:install');
       setSuccess('Güncelleme yükleme başlatıldı. Uygulama yeniden başlatılacak.');
     } catch (error) {
       setError('Güncelleme yükleme başarısız: ' + (error as Error).message);
@@ -118,10 +118,10 @@ export const UpdateControl: React.FC<UpdateControlProps> = ({ className = '' }) 
         return;
       }
       if (updateStatus?.autoCheckEnabled) {
-        await window.electronAPI.update.stopAutoCheck();
+        await window.electronAPI.invoke('update:stopAutoCheck');
         setSuccess('Otomatik güncelleme kontrolü durduruldu.');
       } else {
-        await window.electronAPI.update.startAutoCheck();
+        await window.electronAPI.invoke('update:startAutoCheck', 60);
         setSuccess('Otomatik güncelleme kontrolü başlatıldı.');
       }
     } catch (error) {

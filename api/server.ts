@@ -5,6 +5,7 @@ import { portRouter } from './routes/port';
 import { updateRouter } from './routes/update';
 import { printerRouter } from './routes/printer';
 import { pavoRouter } from './routes/pavo';
+import { licenseRouter } from './routes/license';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 
@@ -57,6 +58,7 @@ export class APIServer {
     this.app.use('/hub/update', updateRouter);
     this.app.use('/hub/printer', printerRouter);
     this.app.use('/hub/pavo', pavoRouter);
+    this.app.use('/api/license', licenseRouter);
 
     this.app.use('*', (req, res) => {
       res.status(404).json({ error: 'Route not found' });

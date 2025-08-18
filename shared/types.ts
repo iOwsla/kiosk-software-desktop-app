@@ -127,7 +127,9 @@ export type PrintElement =
   | PrintElementCut;
 
 export interface PrintJobRequest {
-  printerId: string;
+  printerId?: string; // Kayıtlı yazıcı varsa bu kullanılır
+  ip?: string;        // Doğrudan IP ile yazdırma için
+  port?: number;      // Doğrudan port ile yazdırma için
   elements: PrintElement[];
 }
 
@@ -211,6 +213,8 @@ export const IPC_CHANNELS = {
   PORT_CHECK: 'port:check',
   PORT_FIND_AVAILABLE: 'port:find-available',
   PORT_SCAN_RANGE: 'port:scan-range',
+  PORT_SCAN_IP_RANGE: 'port:scanIpRange',
+  PORT_SCAN_IP_RANGE_UPDATE: 'port:scanIpRangeUpdate',
   PORT_RESOLVE_CONFLICT: 'port:resolve-conflict',
   PORT_SET_CURRENT: 'port:set-current',
   PORT_START_MONITORING: 'port:start-monitoring',
@@ -249,14 +253,6 @@ export const PRINTER_IPC = {
 } as const;
 
 // Pavo Types
-export interface PavoConfig {
-  ipAddress: string;
-  port: number;
-  serialNumber?: string;
-  fingerPrint?: string;
-  kioskSerialNumber?: string;
-}
-
 export type HttpProtocol = 'http' | 'https';
 export type HttpMethod = 'GET' | 'POST';
 

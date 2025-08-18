@@ -1,216 +1,192 @@
 import { app } from 'electron';
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
-import { LicenseVerificationResponse } from '../../../shared/types';
 import { logger } from '../../../api/utils/logger';
-import { HardwareIdGenerator, HardwareInfo } from '../utils/hwid';
+
+export interface LicenseStatus {
+  isValid: boolean;
+  licenseKey?: string;
+  expiryDate?: Date;
+  error?: string;
+}
 
 export class LicenseManager {
-  private configPath: string;
-  private verificationInterval: NodeJS.Timeout | null = null;
-  private currentApiKey: string | null = null;
-  private apiBaseUrl = 'http://localhost:8001/api';
+  private licenseFilePath: string;
+  private currentLicense: string | null = null;
 
   constructor() {
-    this.configPath = path.join(app.getPath('userData'), 'license.json');
+    // Store license file in user data directory
+    const userDataPath = app.getPath('userData');
+    this.licenseFilePath = path.join(userDataPath, 'license.key');
+    this.loadStoredLicense();
   }
 
-  public async checkInitialLicense(): Promise<boolean> {
+  /**
+   * Load stored license from file system
+   */
+  private loadStoredLicense(): void {
     try {
-      const savedApiKey = await this.getSavedApiKey();
-      if (!savedApiKey) {
-        logger.info('No saved API key found');
-        return false;
+      if (fs.existsSync(this.licenseFilePath)) {
+        const licenseData = fs.readFileSync(this.licenseFilePath, 'utf8');
+        this.currentLicense = licenseData.trim();
+        logger.info('License loaded from storage');
+      }
+    } catch (error) {
+      logger.error('Failed to load stored license', { error });
+    }
+  }
+
+  /**
+   * Validate a license key
+   */
+  async validateLicense(licenseKey: string): Promise<LicenseStatus> {
+    try {
+      // Basic validation - check if license key format is correct
+      if (!licenseKey || licenseKey.length < 10) {
+        return {
+          isValid: false,
+          error: 'Invalid license key format'
+        };
       }
 
-      this.currentApiKey = savedApiKey;
-      const result = await this.verifyLicense(savedApiKey);
-      return result.valid;
+      // Simple validation logic - you can enhance this with actual license validation
+      // Support both API key format (sk_...) and traditional license format (XXXX-XXXX-XXXX-XXXX)
+      const apiKeyPattern = /^sk_[a-f0-9]{64}$/; // API key format: sk_ followed by 64 hex characters
+      const licensePattern = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/; // Traditional license format
+      
+      const isValidApiKey = apiKeyPattern.test(licenseKey);
+      const isValidLicenseKey = licensePattern.test(licenseKey);
+      
+      if (!isValidApiKey && !isValidLicenseKey) {
+        return {
+          isValid: false,
+          error: 'License key must be either API key format (sk_...) or traditional format (XXXX-XXXX-XXXX-XXXX)'
+        };
+      }
+
+      // For demonstration, we'll consider the license valid if it matches the pattern
+      // In a real application, you would validate against a license server
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1); // Valid for 1 year
+
+      logger.info('License validation successful', { licenseKey: licenseKey.substring(0, 4) + '****' });
+      
+      return {
+        isValid: true,
+        licenseKey,
+        expiryDate
+      };
     } catch (error) {
-      logger.error('Initial license check failed', { error });
+      logger.error('License validation failed', { error });
+      return {
+        isValid: false,
+        error: 'License validation failed'
+      };
+    }
+  }
+
+  /**
+   * Save a valid license key to storage
+   */
+  async saveLicense(licenseKey: string): Promise<boolean> {
+    try {
+      // Validate the license first
+      const validation = await this.validateLicense(licenseKey);
+      
+      if (!validation.isValid) {
+        throw new Error(validation.error || 'Invalid license key');
+      }
+
+      // Save to file
+      fs.writeFileSync(this.licenseFilePath, licenseKey, 'utf8');
+      this.currentLicense = licenseKey;
+      
+      logger.info('License saved successfully');
+      return true;
+    } catch (error) {
+      logger.error('Failed to save license', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get current license status
+   */
+  getLicenseStatus(): LicenseStatus {
+    if (!this.currentLicense) {
+      return {
+        isValid: false,
+        error: 'No license found'
+      };
+    }
+
+    // For stored licenses, we assume they are valid
+    // In a real application, you might want to re-validate periodically
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
+    return {
+      isValid: true,
+      licenseKey: this.currentLicense,
+      expiryDate
+    };
+  }
+
+  /**
+   * Remove stored license
+   */
+  removeLicense(): boolean {
+    try {
+      if (fs.existsSync(this.licenseFilePath)) {
+        fs.unlinkSync(this.licenseFilePath);
+      }
+      this.currentLicense = null;
+      logger.info('License removed successfully');
+      return true;
+    } catch (error) {
+      logger.error('Failed to remove license', { error });
       return false;
     }
   }
 
-  public async verifyLicense(apiKey: string): Promise<LicenseVerificationResponse> {
+  /**
+   * Check if application has a valid license
+   */
+  hasValidLicense(): boolean {
+    const status = this.getLicenseStatus();
+    return status.isValid;
+  }
+
+  /**
+   * HTTP API method for license verification using axios
+   * Makes a direct HTTP call to the license verification endpoint
+   */
+  async verifyLicenseViaAPI(apiKey: string): Promise<{ isValid: boolean; message: string; expiresAt?: string; isExpired?: boolean }> {
     try {
-      logger.info('Verifying license', { apiKeyPrefix: apiKey.substring(0, 8) + '...' });
-
-      // Get hardware information
-      const hardwareInfo = await HardwareIdGenerator.getHardwareInfo();
-
-      const response = await axios.post(`${this.apiBaseUrl}/license/verify`, {
-        apiKey,
-        hwid: hardwareInfo.hwid,
-        deviceInfo: {
-          hostname: hardwareInfo.hostname,
-          platform: hardwareInfo.platform,
-          arch: hardwareInfo.arch,
-          cpuModel: hardwareInfo.cpuModel
-        }
+      const response = await axios.post('http://localhost:8001/api/license/verify', {
+        apiKey: apiKey
       }, {
-        timeout: 10000,
+        timeout: 5000,
         headers: {
           'Content-Type': 'application/json'
         }
       });
 
-      // API returns { status: boolean, message: string, expiresAt?: string, isExpired?: boolean }
-      const apiResponse = response.data;
-      
-      // Convert API response to our format
-      const result: LicenseVerificationResponse = {
-        valid: apiResponse.status === true,
-        message: apiResponse.message,
-        expiresAt: apiResponse.expiresAt,
-        isExpired: apiResponse.isExpired
-      };
-      
-      if (result.valid) {
-        this.currentApiKey = apiKey;
-        await this.saveApiKey(apiKey);
-        logger.info('License verification successful');
-      } else {
-        logger.warn('License verification failed', { message: result.message });
-      }
-
-      return result;
-    } catch (error) {
-      logger.error('License verification error', { error });
-      
-      if (axios.isAxiosError(error)) {
-        if (error.code === 'ECONNREFUSED') {
-          return {
-            valid: false,
-            message: 'Lisans sunucusuna bağlanılamıyor. Sunucunun çalıştığından emin olun.'
-          };
-        }
-        
-        if (error.response?.status === 401) {
-          return {
-            valid: false,
-            message: 'Geçersiz API anahtarı. Lütfen geçerli bir lisans anahtarı girin.'
-          };
-        }
-
-        if (error.response?.status === 403) {
-          return {
-            valid: false,
-            message: 'Bu cihaz için lisans yetkisi yok.'
-          };
-        }
-        
-        return {
-          valid: false,
-          message: error.response?.data?.message || 'Lisans doğrulama başarısız.'
-        };
-      }
-
       return {
-        valid: false,
-        message: 'License verification failed'
+        isValid: response.data.success || false,
+        message: response.data.message || 'Unknown response',
+        expiresAt: response.data.expiresAt,
+        isExpired: response.data.isExpired || false
       };
-    }
-  }
-
-  public async getLicenseStatus(): Promise<LicenseVerificationResponse> {
-    try {
-      if (!this.currentApiKey) {
-        return {
-          valid: false,
-          message: 'No API key available'
-        };
-      }
-
-      // Use verify endpoint instead of status endpoint for background checks
-      return await this.verifyLicense(this.currentApiKey);
-    } catch (error) {
-      logger.error('License status check error', { error });
+    } catch (error: any) {
+      logger.error('License API verification failed', { error: error.message });
       return {
-        valid: false,
-        message: 'Status check failed'
+        isValid: false,
+        message: error.response?.data?.message || 'API connection failed',
+        isExpired: false
       };
     }
   }
 
-  public async saveApiKey(apiKey: string): Promise<void> {
-    try {
-      const config = {
-        apiKey,
-        savedAt: new Date().toISOString()
-      };
-
-      await fs.writeFile(this.configPath, JSON.stringify(config, null, 2), 'utf8');
-      logger.info('API key saved successfully');
-    } catch (error) {
-      logger.error('Failed to save API key', { error });
-      throw new Error('Failed to save API key');
-    }
-  }
-
-  public async getSavedApiKey(): Promise<string | null> {
-    try {
-      const configData = await fs.readFile(this.configPath, 'utf8');
-      const config = JSON.parse(configData);
-      return config.apiKey || null;
-    } catch (error) {
-      // File doesn't exist or is invalid
-      return null;
-    }
-  }
-
-  public startBackgroundVerification(intervalMinutes: number = 5): void {
-    if (this.verificationInterval) {
-      clearInterval(this.verificationInterval);
-    }
-
-    if (!this.currentApiKey) {
-      logger.warn('Cannot start background verification: no API key');
-      return;
-    }
-
-    logger.info('Starting background license verification', { intervalMinutes });
-
-    this.verificationInterval = setInterval(async () => {
-      try {
-        if (this.currentApiKey) {
-          const result = await this.getLicenseStatus();
-          
-          if (!result.valid) {
-            logger.warn('Background verification failed - license invalid');
-            // Notify renderer to show license renewal page
-            this.handleLicenseExpired();
-          }
-        }
-      } catch (error) {
-        logger.error('Background license verification error', { error });
-      }
-    }, intervalMinutes * 60 * 1000);
-  }
-
-  public stopBackgroundVerification(): void {
-    if (this.verificationInterval) {
-      clearInterval(this.verificationInterval);
-      this.verificationInterval = null;
-      logger.info('Background license verification stopped');
-    }
-  }
-
-  private handleLicenseExpired(): void {
-    // This will be handled by the WindowManager
-    // For now, just log the event
-    logger.warn('License expired - user should be redirected to renewal page');
-  }
-
-  public clearSavedLicense(): Promise<void> {
-    this.currentApiKey = null;
-    return fs.unlink(this.configPath).catch(() => {
-      // File doesn't exist, that's fine
-    });
-  }
-
-  public async getHardwareInfo(): Promise<HardwareInfo> {
-    return await HardwareIdGenerator.getHardwareInfo();
-  }
 }

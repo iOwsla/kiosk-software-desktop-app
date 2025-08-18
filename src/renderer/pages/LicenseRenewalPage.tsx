@@ -13,11 +13,11 @@ export const LicenseRenewalPage: React.FC = () => {
     const initialize = async () => {
       try {
         // Get hardware info
-        const hwInfo = await window.electronAPI.license.getHardwareInfo();
-        setHardwareInfo(hwInfo);
+        const hardwareInfo = await window.electronAPI.invoke('license:getHardwareInfo');
+        setHardwareInfo(hardwareInfo);
 
         // Get current API key
-        const savedKey = await window.electronAPI.license.getSavedKey();
+        const savedKey = await window.electronAPI.invoke('license:getSavedKey');
         if (savedKey) {
           const masked = savedKey.length > 12 
             ? `${savedKey.substring(0, 8)}...${savedKey.substring(savedKey.length - 4)}`
@@ -43,14 +43,14 @@ export const LicenseRenewalPage: React.FC = () => {
     setSuccess(null);
 
     try {
-      const result = await window.electronAPI.license.verify(newApiKey);
+      const result = await window.electronAPI.invoke('license:validate', newApiKey);
       
       if (result.valid) {
-        await window.electronAPI.license.saveKey(newApiKey);
+        await window.electronAPI.invoke('license:save', newApiKey);
         setSuccess('Lisans başarıyla yenilendi! Yönlendiriliyorsunuz...');
         
         setTimeout(() => {
-          window.electronAPI.window.showKiosk();
+          window.electronAPI.invoke('window:showKiosk');
         }, 2000);
       } else {
         setError(result.message || 'Geçersiz API anahtarı');
@@ -75,7 +75,7 @@ export const LicenseRenewalPage: React.FC = () => {
   };
 
   const handleBackToInput = () => {
-    window.electronAPI.window.showLicenseInput();
+    window.electronAPI.invoke('window:showLicenseInput');
   };
 
   return (

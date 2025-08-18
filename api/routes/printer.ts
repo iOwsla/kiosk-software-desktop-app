@@ -4,25 +4,13 @@ import { printerController } from '../controllers/PrinterController';
 
 const router = Router();
 
-router.get('/settings', asyncHandler(printerController.getSettings));
-router.post('/settings', asyncHandler(printerController.setSettings));
-router.get('/list', asyncHandler(printerController.list));
-router.post('/ip/add', asyncHandler(printerController.addIP));
-router.post('/set-active', asyncHandler(printerController.setActive));
-router.post('/print-test', asyncHandler(printerController.printTest));
+// Yazıcı listesi
+router.get('/list', asyncHandler(printerController.listPrinters));
+
+// Yazdırma işlemleri
 router.post('/print', asyncHandler(printerController.printJob));
+router.post('/print-test', asyncHandler(printerController.printTest));
 router.post('/print-sample', asyncHandler(printerController.printSample));
-router.post('/discover-ip', asyncHandler(printerController.discoverIP));
-
-// Named Printer Management
-router.post('/name', asyncHandler(printerController.setPrinterName));
-router.delete('/name/:customName', asyncHandler(printerController.removePrinterName));
-router.get('/profiles', asyncHandler(printerController.getPrinterProfiles));
-
-// Named Printing Endpoints
-router.post('/print/:printerName', asyncHandler(printerController.printByName));
-
-router.delete('/:id', asyncHandler(printerController.remove));
 
 export { router as printerRouter };
 

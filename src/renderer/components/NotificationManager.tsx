@@ -91,14 +91,12 @@ export const NotificationManager: React.FC = () => {
 
     // Event listener'ları ekle
     if (window.electronAPI?.on) {
-      window.electronAPI.on.portChanged(handlePortChange);
       window.electronAPI.on.updateStatus(handleUpdateStatus);
     }
 
     // Cleanup
     return () => {
       if (window.electronAPI?.off) {
-        window.electronAPI.off.portChanged(handlePortChange);
         window.electronAPI.off.updateStatus(handleUpdateStatus);
       }
     };

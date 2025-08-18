@@ -21,8 +21,8 @@ export class WindowManager {
     }
 
     this.kioskWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
+      width: 600,
+      height: 400,
       center: true,
       fullscreen: false,
       kiosk: false,
@@ -30,6 +30,7 @@ export class WindowManager {
       resizable: false,
       alwaysOnTop: false,
       skipTaskbar: false,
+      icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -67,6 +68,12 @@ export class WindowManager {
     this.kioskWindow.once('ready-to-show', () => {
       this.kioskWindow?.show();
       this.kioskWindow?.focus();
+      if (this.isDev) {
+        this.kioskWindow?.webContents.openDevTools();
+      }
+      if (this.isDev) {
+        this.kioskWindow?.webContents.openDevTools();
+      }
       
       // Hide other windows
       this.hideLicenseInputWindow();
@@ -90,12 +97,13 @@ export class WindowManager {
     }
 
     this.licenseInputWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
+      width: this.isDev ? 1280 : 800,
+      height: this.isDev ? 720 : 600,
       center: true,
-      resizable: false,
-      frame: true,
-      alwaysOnTop: false,
+      resizable: this.isDev,
+      frame: this.isDev,
+      alwaysOnTop: !this.isDev,
+      icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -143,12 +151,13 @@ export class WindowManager {
     }
 
     this.licenseRenewalWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
+      width: this.isDev ? 1280 : 800,
+      height: this.isDev ? 720 : 600,
       center: true,
-      resizable: false,
-      frame: true,
-      alwaysOnTop: false,
+      resizable: this.isDev,
+      frame: this.isDev,
+      alwaysOnTop: !this.isDev,
+      icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,

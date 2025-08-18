@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Printer, CreditCard, Settings, Store, Download, RefreshCw, Sparkles, Check, X, Package2 } from 'lucide-react';
-import { LicenseInputPage } from './LicenseInputPage';
+import { Input } from '../components/ui/input';
+import { Shield, Check, X, RefreshCw, Download, Key, AlertTriangle, Sparkles } from 'lucide-react';
+import gafYaziLogo from '../logotext.svg';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
 const HomePage: React.FC = () => {
   const [version, setVersion] = useState<string>('');
   const [isLicenseValid, setIsLicenseValid] = useState<boolean | null>(null);
-  const [isCheckingLicense, setIsCheckingLicense] = useState(true);
+  const [isCheckingLicense, setIsCheckingLicense] = useState(false);
+  const [licenseExpiresAt, setLicenseExpiresAt] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{
     version?: string;
@@ -20,25 +23,197 @@ const HomePage: React.FC = () => {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [showLicenseInput, setShowLicenseInput] = useState(false);
+  const [licenseError, setLicenseError] = useState<string | null>(null);
+  const [licenseKey, setLicenseKey] = useState('');
 
-  const handleUpdateDownloaded = async () => {
-    const confirmInstall = window.confirm('Güncelleme indirildi. Uygulamayı şimdi yeniden başlatmak ister misiniz?');
-    if (confirmInstall) {
-      await window.electronAPI.update.install();
+  // Güncelleme kontrol fonksiyonları
+  const checkForUpdates = async () => {
+    if (!window.electronAPI || !window.electronAPI.invoke) {
+      console.error('ElectronAPI mevcut değil');
+      return;
     }
+    setIsCheckingUpdate(true);
+    try {
+      await window.electronAPI.invoke('update:check');
+    } catch (error) {
+      console.error('Güncelleme kontrol hatası:', error);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const startDownload = async () => {
+    if (!window.electronAPI || !window.electronAPI.invoke) {
+      console.error('ElectronAPI mevcut değil');
+      return;
+    }
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    try {
+      await window.electronAPI.invoke('update:download');
+    } catch (error) {
+      console.error('Güncelleme indirme hatası:', error);
+      setIsDownloading(false);
+    }
+  };
+
+  const handleUpdateDownloaded = async (): Promise<void> => {
+    const confirmInstall = window.confirm('Güncelleme indirildi. Şimdi yüklemek istiyor musunuz? Uygulama yeniden başlatılacak.');
+    if (confirmInstall && window.electronAPI && window.electronAPI.invoke) {
+      await window.electronAPI.invoke('update:install');
+    }
+  };
+
+  // Kalan süreyi hesaplayan fonksiyon
+  const calculateTimeRemaining = (expiresAt: string): string => {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diff = expiry.getTime() - now.getTime();
+    
+    if (diff <= 0) {
+      return 'Süresi dolmuş';
+    }
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days} gün ${hours} saat`;
+    } else if (hours > 0) {
+      return `${hours} saat ${minutes} dakika`;
+    } else {
+      return `${minutes} dakika`;
+    }
+  };
+
+  // Lisans kontrol fonksiyonları
+  const checkLicenseStatus = async () => {
+    // Önce IPC ile kaydedilmiş lisans anahtarını al
+    let savedLicenseKey = null;
+    if (window.electronAPI && window.electronAPI.invoke) {
+      try {
+        const status = await window.electronAPI.invoke('license:getStatus');
+        if (status.licenseKey) {
+          savedLicenseKey = status.licenseKey;
+        }
+      } catch (error) {
+        console.warn('IPC ile lisans anahtarı alınamadı:', error);
+      }
+    }
+
+    // Eğer kaydedilmiş lisans anahtarı varsa HTTP API ile doğrula
+    if (savedLicenseKey) {
+      setIsCheckingLicense(true);
+      setLicenseError(null);
+      try {
+        const response = await fetch('http://localhost:8001/api/license/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ apiKey: savedLicenseKey })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status) {
+           setIsLicenseValid(true);
+           setLicenseExpiresAt(result.expiresAt);
+           if (result.expiresAt) {
+             setTimeRemaining(calculateTimeRemaining(result.expiresAt));
+           }
+         } else {
+           setIsLicenseValid(false);
+           setLicenseExpiresAt(null);
+           setTimeRemaining('');
+           setShowLicenseInput(true);
+           setLicenseError(result.message || 'Lisans geçersiz');
+         }
+      } catch (error) {
+        console.error('HTTP API ile lisans kontrolü başarısız:', error);
+        setIsLicenseValid(false);
+        setLicenseError('Lisans durumu kontrol edilemedi');
+        setShowLicenseInput(true);
+      } finally {
+        setIsCheckingLicense(false);
+      }
+    } else {
+      // Kaydedilmiş lisans anahtarı yoksa
+      setIsLicenseValid(false);
+      setShowLicenseInput(true);
+      setLicenseError('Lisans anahtarı gerekli');
+    }
+  };
+
+  const validateLicense = async () => {
+    if (!licenseKey.trim()) {
+      setLicenseError('Lütfen lisans anahtarını girin');
+      return;
+    }
+
+    setIsCheckingLicense(true);
+    setLicenseError(null);
+    try {
+      // HTTP API kullanarak lisans doğrulama
+      const response = await fetch('http://localhost:8001/api/license/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: licenseKey.trim() })
+      });
+      
+      const result = await response.json();
+      
+      if (result.status) {
+          // IPC ile lisansı kaydet
+          if (window.electronAPI && window.electronAPI.invoke) {
+            await window.electronAPI.invoke('license:save', licenseKey.trim());
+          }
+          setIsLicenseValid(true);
+          setLicenseExpiresAt(result.expiresAt);
+          if (result.expiresAt) {
+            setTimeRemaining(calculateTimeRemaining(result.expiresAt));
+          }
+          setShowLicenseInput(false);
+          setLicenseKey('');
+        } else {
+          setLicenseError(result.message || 'Geçersiz lisans anahtarı');
+        }
+    } catch (error) {
+      console.error('Lisans doğrulama hatası:', error);
+      setLicenseError('Lisans doğrulama sırasında hata oluştu');
+      setIsLicenseValid(false);
+    } finally {
+      setIsCheckingLicense(false);
+    }
+  };
+
+  const handleLicenseKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLicenseKey(e.target.value);
+    setLicenseError(null);
   };
 
   useEffect(() => {
     // Version bilgisini al
-    window.electronAPI.getAppVersion().then((appVersion) => {
-      setVersion(appVersion);
-    }).catch((error) => {
-      console.error('Version bilgisi alınamadı:', error);
+    if (window.electronAPI && window.electronAPI.getAppVersion) {
+      window.electronAPI.getAppVersion().then((appVersion) => {
+        setVersion(appVersion);
+      }).catch((error) => {
+        console.error('Version bilgisi alınamadı:', error);
+        setVersion('1.0.9');
+      });
+    } else {
+      console.warn('ElectronAPI mevcut değil, varsayılan version kullanılıyor');
       setVersion('1.0.9');
-    });
+    }
 
     // Lisans durumunu kontrol et
     checkLicenseStatus();
+
+
 
     // Güncelleme durumunu dinle
     interface UpdateNotification {
@@ -74,295 +249,243 @@ const HomePage: React.FC = () => {
     };
 
     // Event listener'ı ekle
-    window.electronAPI.on.updateStatus(handleUpdateStatus);
+    if (window.electronAPI && window.electronAPI.on) {
+      window.electronAPI.on.updateStatus(handleUpdateStatus);
+    }
 
     // İlk güncelleme kontrolü (5 saniye gecikmeyle)
     const initialCheckTimer = setTimeout(() => {
-      checkForUpdates();
+      if (window.electronAPI && window.electronAPI.invoke) {
+        window.electronAPI.invoke('update:check').catch(console.error);
+      }
     }, 5000);
 
     // Otomatik güncelleme kontrolünü başlat (60 dakikada bir)
-    window.electronAPI.update.startAutoCheck(60).catch(console.error);
+    if (window.electronAPI && window.electronAPI.invoke) {
+      window.electronAPI.invoke('update:startAutoCheck', 60).catch(console.error);
+    }
 
     // Cleanup
     return () => {
       clearTimeout(initialCheckTimer);
-      window.electronAPI.off.updateStatus(handleUpdateStatus);
-      window.electronAPI.update.stopAutoCheck().catch(console.error);
+      if (window.electronAPI && window.electronAPI.off) {
+        window.electronAPI.off.updateStatus(handleUpdateStatus);
+      }
+      if (window.electronAPI && window.electronAPI.invoke) {
+        window.electronAPI.invoke('update:stopAutoCheck').catch(console.error);
+      }
     };
   }, []);
 
-  const checkLicenseStatus = async () => {
-    try {
-      setIsCheckingLicense(true);
-      
-      // Önce kaydedilmiş API key var mı kontrol et
-      if (window.electronAPI && window.electronAPI.license) {
-        const savedKey = await window.electronAPI.license.getSavedKey();
-        
-        if (savedKey) {
-          // Kaydedilmiş key varsa doğrula
-          const result = await window.electronAPI.license.verify(savedKey);
-          setIsLicenseValid(result.valid);
-        } else {
-          // Kaydedilmiş key yoksa
-          setIsLicenseValid(false);
-        }
-      } else {
-        // Electron API mevcut değilse
-        setIsLicenseValid(false);
-      }
-    } catch (error) {
-      console.error('Lisans kontrolü başarısız:', error);
-      setIsLicenseValid(false);
-    } finally {
-      setIsCheckingLicense(false);
-    }
-  };
+  // Zamanlayıcı için ayrı useEffect
+  useEffect(() => {
+    if (!licenseExpiresAt) return;
+
+    // İlk hesaplama
+    setTimeRemaining(calculateTimeRemaining(licenseExpiresAt));
+
+    // Her dakika güncelle
+    const timer = setInterval(() => {
+      setTimeRemaining(calculateTimeRemaining(licenseExpiresAt));
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, [licenseExpiresAt]);
 
 
-  const checkForUpdates = async () => {
-    setIsCheckingUpdate(true);
-    try {
-      const status = await window.electronAPI.update.check();
-      
-      if (status.available) {
-        setUpdateAvailable(true);
-        setUpdateInfo({
-          version: status.version,
-          releaseDate: status.releaseDate,
-          notes: status.releaseNotes ? status.releaseNotes.split('\n').filter(n => n.trim()) : [],
-          size: '~50 MB' // Boyut bilgisi API'den gelmiyorsa tahmini
-        });
-      } else {
-        setUpdateAvailable(false);
-        setUpdateInfo(null);
-      }
-    } catch (error) {
-      console.error('Güncelleme kontrolü başarısız:', error);
-      setUpdateAvailable(false);
-    } finally {
-      setIsCheckingUpdate(false);
-    }
-  };
 
-  const startDownload = async () => {
-    setIsDownloading(true);
-    setDownloadProgress(0);
-    
-    try {
-      // İndirme işlemini başlat
-      await window.electronAPI.update.download();
-      // Progress güncellemeleri useEffect'teki listener tarafından yönetilecek
-    } catch (error) {
-      console.error('İndirme başlatılamadı:', error);
-      setIsDownloading(false);
-      setDownloadProgress(0);
-    }
-  };
 
-  // Lisans kontrolü yapılıyor
-  if (isCheckingLicense) {
-    return (
-      <div className="h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
+
+  return (
+    <div className="w-[600px] h-[400px] mx-auto my-auto flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 rounded-2xl shadow-2xl border border-white/20">
+      <div className="flex flex-col overflow-hidden p-4">
+        {/* Lisans kontrol bildirimi */}
+        {isLicenseValid === false && (
+          <div className="mb-3 p-4 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200/50 rounded-xl shadow-lg backdrop-blur-sm">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-red-900">Lisans Gerekli</h3>
+                <p className="text-xs text-red-700/80">Geçerli lisans anahtarı gereklidir.</p>
+              </div>
+            </div>
+            {showLicenseInput && (
+              <div className="mt-3 space-y-3">
+                <div className="flex space-x-2">
+                  <Input
+                    type="text"
+                    placeholder="Lisans anahtarı..."
+                    value={licenseKey}
+                    onChange={handleLicenseKeyChange}
+                    className="flex-1 text-xs h-9 bg-white/80 border-red-200 focus:border-red-400 rounded-lg shadow-sm"
+                    disabled={isCheckingLicense}
+                  />
+                  <Button 
+                    onClick={validateLicense}
+                    disabled={isCheckingLicense || !licenseKey.trim()}
+                    size="sm"
+                    className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 h-9 px-4 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105"
+                  >
+                    {isCheckingLicense ? (
+                      <LoadingSpinner size="small" />
+                    ) : (
+                      <>
+                        <Key className="h-4 w-4 mr-2" />
+                        <span className="text-xs font-medium">Doğrula</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {licenseError && (
+                  <div className="flex items-center space-x-2 p-2 bg-red-100/50 rounded-lg">
+                    <X className="h-4 w-4 text-red-600" />
+                    <span className="text-xs text-red-700 font-medium">{licenseError}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Güncelleme bildirimi */}
+        {updateAvailable && (
+          <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200/50 rounded-xl shadow-lg backdrop-blur-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <Download className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-blue-900">
+                    Güncelleme: v{updateInfo?.version}
+                  </h3>
+                  <p className="text-xs text-blue-700/80">
+                    {updateInfo?.size && `Boyut: ${updateInfo.size}`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                {isDownloading ? (
+                  <div className="flex items-center space-x-3">
+                    <div className="w-32 bg-blue-200/50 rounded-full h-3 shadow-inner">
+                      <div 
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300 shadow-sm" 
+                        style={{ width: `${downloadProgress}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-medium text-blue-700">{downloadProgress}%</span>
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={startDownload}
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    İndir
+                  </Button>
+                )}
+              </div>
+            </div>
+            {updateInfo?.notes && updateInfo.notes.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-blue-200/50">
+                <h4 className="text-sm font-semibold text-blue-900 mb-3">Güncelleme notları:</h4>
+                <ul className="text-sm text-blue-700/90 space-y-2">
+                  {updateInfo.notes.map((note, index) => (
+                    <li key={index} className="flex items-start space-x-2">
+                      <span className="text-blue-500 mt-1 font-bold">•</span>
+                      <span>{note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ana İçerik */}
         <div className="text-center">
-          <LoadingSpinner size="large" />
-          <p className="mt-2 text-sm text-muted-foreground">Lisans kontrol ediliyor...</p>
+          {/* Logo ve Hub Panel Başlığı */}
+          <div className="flex items-center justify-between mb-4 px-4">
+            {/* Logo */}
+            <div>
+              <img src={gafYaziLogo} alt="GAF Logo" className="h-10 w-auto" />
+            </div>
+            
+            {/* Hub Panel Başlığı */}
+            <div className="text-right flex items-center space-x-3">
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">Hub Panel</h1>
+                <p className="text-sm text-slate-600 font-medium mt-1">v1.3.0</p>
+              </div>
+              <button 
+                onClick={checkForUpdates}
+                className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 text-white"
+                title="Güncelleme Kontrol Et"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Sistem Bilgileri Kartları */}
+          <div className="grid grid-cols-2 gap-3 mb-3 px-4">
+            {/* Sistem Durumu Kartı */}
+            <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl shadow-lg border border-white/50 p-3 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-200/50">
+                <h3 className="text-sm font-bold text-slate-800">Sistem Durumu</h3>
+                <div className="p-1 bg-green-100 rounded-full">
+                  <Check className="h-4 w-4 text-green-600" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-slate-600 font-medium">CPU:</div>
+                <div className="text-slate-900 font-bold">15%</div>
+                <div className="text-slate-600 font-medium">RAM:</div>
+                <div className="text-slate-900 font-bold">45%</div>
+              </div>
+            </div>
+
+            {/* Lisans Durumu Kartı */}
+            <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-white/50 p-3 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-2 pb-2 border-b border-blue-200/50">
+                <h3 className="text-sm font-bold text-slate-800">Lisans</h3>
+                <div className="p-1 bg-blue-100 rounded-full">
+                  <Shield className="h-4 w-4 text-blue-600" />
+                </div>
+              </div>
+              <div className="text-xs space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-medium">Durum:</span>
+                  <span className={`font-bold px-2 py-1 rounded text-xs ${
+                    isLicenseValid === true ? 'text-green-700 bg-green-100' : 
+                    isLicenseValid === false ? 'text-red-700 bg-red-100' : 'text-yellow-700 bg-yellow-100'
+                  }`}>
+                    {isLicenseValid === true ? 'Geçerli' : 
+                     isLicenseValid === false ? 'Geçersiz' : 'Kontrol...'}
+                  </span>
+                </div>
+                {licenseExpiresAt && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600 font-medium">Süre:</span>
+                    <span className="text-slate-900 font-bold text-xs">{timeRemaining}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    );
-  }
-
-  // Lisans geçersizse veya yoksa lisans giriş sayfasını göster
-  if (!isLicenseValid) {
-    return <LicenseInputPage />;
-  }
-
-  // Lisans geçerliyse ana sayfayı göster
-  return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
-      {/* Güncelleme Bildirimi */}
-      {updateAvailable && !isDownloading && (
-        <div className="bg-gradient-to-r from-green-600/20 to-blue-600/20 border-b border-white/20 backdrop-blur-sm">
-          <div className="px-6 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-              <div>
-                <p className="text-white font-medium text-sm">Yeni güncelleme mevcut! v{updateInfo?.version}</p>
-                <p className="text-white/70 text-xs">Boyut: {updateInfo?.size} • Yayın: {updateInfo?.releaseDate}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={startDownload}
-              >
-                <Download className="w-4 h-4 mr-1" />
-                İndir
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-white/70 hover:text-white"
-                onClick={() => setUpdateAvailable(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
+      
+      {/* Footer - Fixed Bottom */}
+      <div className="fixed bottom-0 left-0 right-0 text-center p-2 z-10">
+        <div className="bg-gradient-to-r from-slate-100/90 to-blue-100/90 rounded-lg p-2 backdrop-blur-sm border border-white/30 shadow-lg mx-auto max-w-md">
+          <div className="text-sm text-slate-700">
+            <div className="font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent">
+              GAF Dijital Çözümler - info@gafdigi.com
             </div>
           </div>
-        </div>
-      )}
-
-      {/* İndirme İlerlemesi */}
-      {isDownloading && (
-        <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-white/20 backdrop-blur-sm">
-          <div className="px-6 py-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-white text-sm font-medium">Güncelleme indiriliyor...</span>
-              <span className="text-white/70 text-sm">{downloadProgress}%</span>
-            </div>
-            <div className="w-full bg-white/10 rounded-full h-2">
-              <div 
-                className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${downloadProgress}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Ana İçerik */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-2xl">
-          <Card className="border shadow-2xl bg-white/10 backdrop-blur-xl border-white/20">
-            {/* Başlık */}
-            <CardHeader className="text-center pb-4 relative">
-              <div className="absolute top-4 right-4">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-white/60 hover:text-white hover:bg-white/10"
-                  onClick={checkForUpdates}
-                  disabled={isCheckingUpdate}
-                >
-                  {isCheckingUpdate ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                  <span className="ml-1 text-xs">Güncelleme Kontrol</span>
-                </Button>
-              </div>
-              
-              <div className="mx-auto mb-3 w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Store className="w-7 h-7 text-white" />
-              </div>
-              <CardTitle className="text-2xl font-bold text-white">
-                Gaf Digi
-              </CardTitle>
-              <CardDescription className="text-sm mt-1 text-purple-200">
-                Kiosk Yönetim Sistemi
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-4 px-6">
-              {/* Durum Bilgisi */}
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  <span className="text-green-300 text-sm font-medium">Sistem Aktif</span>
-                </div>
-                <Badge className="bg-white/10 text-white text-xs">
-                  v{version || '1.0.9'}
-                </Badge>
-              </div>
-
-              {/* Yönetim Butonları - 2x2 Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center gap-2 bg-white/5 border-white/20 hover:bg-white/10 text-white transition-all hover:scale-105"
-                  onClick={() => console.log('Yazıcı Yönetimi')}
-                >
-                  <Printer className="w-6 h-6 text-purple-400" />
-                  <span className="text-xs font-medium">Yazıcı Yönetimi</span>
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center gap-2 bg-white/5 border-white/20 hover:bg-white/10 text-white transition-all hover:scale-105"
-                  onClick={() => console.log('Ödeme Entegrasyonu')}
-                >
-                  <CreditCard className="w-6 h-6 text-green-400" />
-                  <span className="text-xs font-medium">Ödeme Sistemi</span>
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center gap-2 bg-white/5 border-white/20 hover:bg-white/10 text-white transition-all hover:scale-105"
-                  onClick={() => console.log('Genel Ayarlar')}
-                >
-                  <Settings className="w-6 h-6 text-blue-400" />
-                  <span className="text-xs font-medium">Genel Ayarlar</span>
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center gap-2 bg-white/5 border-white/20 hover:bg-white/10 text-white transition-all hover:scale-105"
-                  onClick={() => console.log('Mağaza Yönetimi')}
-                >
-                  <Store className="w-6 h-6 text-orange-400" />
-                  <span className="text-xs font-medium">Mağaza Yönetimi</span>
-                </Button>
-              </div>
-
-              {/* Alt Bilgi Kartları */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-purple-300">Lisans Durumu</span>
-                    <Check className="w-3 h-3 text-green-400" />
-                  </div>
-                  <p className="text-white font-medium text-sm">Aktif</p>
-                  <p className="text-white/50 text-xs">Süresiz lisans</p>
-                </div>
-
-                <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-purple-300">Sistem Sürümü</span>
-                    <Package2 className="w-3 h-3 text-blue-400" />
-                  </div>
-                  <p className="text-white font-medium text-sm">v{version || '1.0.9'}</p>
-                  <p className="text-white/50 text-xs">Kararlı sürüm</p>
-                </div>
-              </div>
-
-              {/* Güncelleme Notları */}
-              {updateAvailable && updateInfo && (
-                <div className="p-3 bg-gradient-to-r from-green-600/10 to-blue-600/10 rounded-lg border border-white/10">
-                  <h4 className="text-white font-medium text-sm mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-yellow-400" />
-                    Güncelleme Detayları
-                  </h4>
-                  <ul className="space-y-1">
-                    {updateInfo.notes?.map((note: string, index: number) => (
-                      <li key={index} className="text-white/70 text-xs flex items-start gap-2">
-                        <span className="text-green-400 mt-0.5">•</span>
-                        <span>{note}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </CardContent>
-            
-            <CardFooter className="pt-4 pb-3">
-              <p className="text-xs text-purple-300/60 text-center w-full">
-                © 2024 Gaf Digi. Tüm hakları saklıdır.
-              </p>
-            </CardFooter>
-          </Card>
         </div>
       </div>
     </div>

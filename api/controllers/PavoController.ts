@@ -1,14 +1,9 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
-import type { PavoConfig, PavoRequestPayload, PavoResponse, PavoScanRequest, PavoScanResult } from '../../shared/types';
+import type { PavoRequestPayload, PavoResponse, PavoScanRequest, PavoScanResult } from '../../shared/types';
 import { PavoDeviceStore } from '../services/PavoDeviceStore';
 
-const pavoConfig: PavoConfig = {
-  ipAddress: '192.168.1.218',
-  port: 4567
-};
 
-let isPaired = false;
 let lastTransactionSequence = 1;
 let isBusy = false;
 const ALLOWED_DURING_BUSY = new Set(['AbortCurrentPayment', 'GetSaleResult', 'GetCancellationResult']);
@@ -35,33 +30,6 @@ async function isPortOpen(ip: string, port: number, timeoutMs = 300): Promise<bo
 export class PavoController {
   private deviceStore = PavoDeviceStore.getInstance();
 
-  public getConfig = (_req: Request, res: Response) => {
-    const deviceId = (_req.query.deviceId as string) || undefined;
-    if (deviceId) {
-      const dev = this.deviceStore.get(deviceId);
-      if (!dev) return res.status(404).json({ success: false, data: null, error: 'Device not found', meta: {} });
-      return res.json({ success: true, data: { ipAddress: dev.ipAddress, port: dev.port, serialNumber: dev.serialNumber, fingerPrint: dev.fingerPrint, isPaired: dev.isPaired, lastTransactionSequence: dev.lastTransactionSequence } });
-    }
-    res.json({ success: true, data: { ...pavoConfig, isPaired, lastTransactionSequence } });
-  };
-
-  public setConfig = (req: Request, res: Response) => {
-    const { deviceId, ipAddress, port, serialNumber, fingerPrint, kioskSerialNumber } = req.body as Partial<PavoConfig> & { deviceId?: string };
-    if (deviceId) {
-      const exists = this.deviceStore.get(deviceId);
-      const updated = exists
-        ? this.deviceStore.update(deviceId, { ipAddress, port, serialNumber, fingerPrint })
-        : this.deviceStore.create({ id: deviceId, ipAddress, port, serialNumber, fingerPrint });
-      return res.json({ success: true, data: { ipAddress: updated.ipAddress, port: updated.port, serialNumber: updated.serialNumber, fingerPrint: updated.fingerPrint, isPaired: updated.isPaired, lastTransactionSequence: updated.lastTransactionSequence } });
-    }
-    if (ipAddress) pavoConfig.ipAddress = ipAddress;
-    if (typeof port === 'number') pavoConfig.port = port;
-    if (serialNumber !== undefined) pavoConfig.serialNumber = serialNumber;
-    if (fingerPrint !== undefined) pavoConfig.fingerPrint = fingerPrint;
-    if (kioskSerialNumber !== undefined) pavoConfig.kioskSerialNumber = kioskSerialNumber;
-    res.json({ success: true, data: { ...pavoConfig, isPaired, lastTransactionSequence } });
-  };
-
   public async scan(_req: Request, res: Response) {
     const body = (_req.body || {}) as PavoScanRequest;
     const base = body.base || '192.168.1';
@@ -87,10 +55,10 @@ export class PavoController {
       const reqBody = _req.body as PavoRequestPayload;
       const deviceId = (_req.body?.deviceId as string) || undefined;
       const deviceState = deviceId ? this.deviceStore.get(deviceId) : undefined;
-      const ip = deviceState?.ipAddress ?? pavoConfig.ipAddress;
-      const port = deviceState?.port ?? pavoConfig.port;
-      const serial = deviceState?.serialNumber ?? pavoConfig.serialNumber;
-      const fp = deviceState?.fingerPrint ?? pavoConfig.fingerPrint;
+      const ip = deviceState?.ipAddress ?? "192.168.1.218";
+      const port = deviceState?.port ?? "4567";
+      const serial = deviceState?.serialNumber ?? ""
+      const fp = deviceState?.fingerPrint ?? "GAFDIGI_FERHAT_" + serial;
       const baseUrl = `${reqBody.protocol}://${ip}:${port}`;
       const url = `${baseUrl}/${reqBody.endPoint}`;
 
@@ -204,8 +172,6 @@ export class PavoController {
       if (isPairing && success) {
         if (deviceState) {
           this.deviceStore.update(deviceState.id, { isPaired: true });
-        } else {
-          isPaired = true;
         }
       }
       res.json(out);

@@ -1,84 +1,126 @@
 import { Request, Response } from 'express';
 import { printerManager } from '../../src/main/services/PrinterManager';
+import { PrintJobRequest, IPDiscoveryRange } from '../../shared/types';
 
 class PrinterController {
-  public getSettings = async (_req: Request, res: Response) => {
-    res.json({ success: true, data: printerManager.getSettings() });
-  };
-
-  public setSettings = async (req: Request, res: Response) => {
-    const next = req.body || {};
-    const data = printerManager.setSettings(next);
-    res.json({ success: true, data });
-  };
-
-  public list = async (_req: Request, res: Response) => {
-    res.json({ success: true, data: printerManager.listPrinters() });
-  };
-
-  public addIP = async (req: Request, res: Response) => {
-    const dev = printerManager.addIPPrinter(req.body);
-    res.json({ success: true, data: dev });
-  };
-
-  public setActive = async (req: Request, res: Response) => {
-    printerManager.setActivePrinter(req.body.id);
-    res.json({ success: true });
-  };
-
-  public remove = async (req: Request, res: Response) => {
-    printerManager.removePrinter(req.params.id);
-    res.json({ success: true });
-  };
-
-  public printTest = async (req: Request, res: Response) => {
-    await printerManager.printTest(req.body?.id);
-    res.json({ success: true });
+  public listPrinters = async (req: Request, res: Response) => {
+    try {
+      const { scan } = req.query;
+      let printers = printerManager.listPrinters();
+ 
+      // Eğer scan=true parametresi varsa IP taraması yap
+      if (scan === 'true') {
+        const { base = '192.168.1', start = 1, end = 254, port = 9100 } = req.query;
+        const range: IPDiscoveryRange = {
+          base: base as string,
+          start: parseInt(start as string),
+          end: parseInt(end as string),
+          port: parseInt(port as string)
+        };
+        
+        console.log('API: IP tarama başlatılıyor:', range);
+        
+        const discoveredPrinters = await printerManager.discoverIPPrinters(range);
+        console.log('API: Bulunan yazıcılar:', discoveredPrinters);
+        
+        // Mevcut liste ile birleştir (duplicate'ları önlemek için)
+        const allPrinters = [...printers];
+        discoveredPrinters.forEach(discovered => {
+          if (!allPrinters.find(p => p.id === discovered.id)) {
+            allPrinters.push(discovered);
+          }
+        });
+        printers = allPrinters;
+      }
+      
+      res.json({ success: true, data: printers });
+    } catch (error) {
+      console.error('API: Yazıcı listesi hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Yazıcı listesi alınırken hata oluştu'
+      });
+    }
   };
 
   public printJob = async (req: Request, res: Response) => {
-    await printerManager.printJob(req.body);
-    res.json({ success: true });
+    try {
+      const printRequest: PrintJobRequest = req.body;
+      
+      // Yazıcı seçimi validasyonu
+      if (!printRequest.printerId && (!printRequest.ip || !printRequest.port)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Yazıcı ID veya IP/Port bilgisi gerekli'
+        });
+      }
+
+      if (!printRequest.elements || !Array.isArray(printRequest.elements) || printRequest.elements.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Yazdırılacak içerik (elements) gerekli'
+        });
+      }
+
+      const result = await printerManager.printJob(printRequest);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Yazdırma hatası'
+      });
+    }
+  };
+
+  public printTest = async (req: Request, res: Response) => {
+    try {
+      const { printerId, ip, port } = req.body;
+      
+      // Yazıcı seçimi validasyonu
+      if (!printerId && (!ip || !port)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Yazıcı ID veya IP/Port bilgisi gerekli'
+        });
+      }
+
+      const result = await printerManager.printTest(printerId, ip, port);
+       res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Test yazdırma hatası'
+      });
+    }
   };
 
   public printSample = async (req: Request, res: Response) => {
-    const { type, printerId } = req.body;
-    await printerManager.printSample(type, printerId);
-    res.json({ success: true });
-  };
+    try {
+      const { type, printerId, ip, port } = req.body;
+      
+      if (!type || !['receipt', 'label', 'test'].includes(type)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Geçerli bir örnek tipi gerekli (receipt, label, test)'
+        });
+      }
 
-  public discoverIP = async (req: Request, res: Response) => {
-    const list = await printerManager.discoverIPPrinters(req.body);
-    res.json({ success: true, data: list });
-  };
+      // Yazıcı seçimi validasyonu
+      if (!printerId && (!ip || !port)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Yazıcı ID veya IP/Port bilgisi gerekli'
+        });
+      }
 
-  // Named Printer Management
-  public setPrinterName = async (req: Request, res: Response) => {
-    const profile = printerManager.setPrinterCustomName(req.body);
-    res.json({ success: true, data: profile });
-  };
-
-  public removePrinterName = async (req: Request, res: Response) => {
-    const { customName } = req.params;
-    const removed = printerManager.removePrinterCustomName(customName);
-    res.json({ success: true, data: { removed } });
-  };
-
-  public getPrinterProfiles = async (_req: Request, res: Response) => {
-    const profiles = printerManager.getPrinterProfiles();
-    res.json({ success: true, data: profiles });
-  };
-
-  public printByName = async (req: Request, res: Response) => {
-    const { printerName } = req.params;
-    const elements = req.body.elements || req.body;
-    
-    const result = await printerManager.printByCustomName({
-      printerName,
-      elements: Array.isArray(elements) ? elements : [elements]
-    });
-    
-    res.json({ success: true, data: result });
+      const result = await printerManager.printSample(type, printerId, ip, port);
+       res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Örnek yazdırma hatası'
+      });
+    }
   };
 }
 

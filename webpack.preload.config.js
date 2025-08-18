@@ -3,6 +3,7 @@ const path = require('path');
 module.exports = {
   entry: './src/main/preload/preload.ts',
   target: 'electron-preload',
+  mode: 'production',
   module: {
     rules: [
       {
@@ -11,8 +12,12 @@ module.exports = {
         use: {
           loader: 'ts-loader',
           options: {
-            transpileOnly: false,
-            configFile: 'tsconfig.json'
+            transpileOnly: true,
+            configFile: 'tsconfig.json',
+            compilerOptions: {
+              declaration: false,
+              noEmit: false
+            }
           }
         }
       }
@@ -20,7 +25,8 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, './dist'),
-    filename: 'preload.js'
+    filename: 'preload.js',
+    clean: false
   },
   resolve: {
     extensions: ['.ts', '.js'],

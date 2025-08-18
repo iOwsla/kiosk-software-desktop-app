@@ -3,19 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://localhost:3001 http://127.0.0.1:3001 ws://localhost:3000 ws://127.0.0.1:3000; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self';">
+  <!-- CSP for both development and production -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws://localhost:3000 ws://127.0.0.1:3000 http://localhost:3001 http://127.0.0.1:3001 http://localhost:8001 http://127.0.0.1:8001; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self';">
   <title>Kiosk Application</title>
-  <script>
-    window.global = window.globalThis = window;
-    if (typeof window.require === 'undefined') {
-      window.require = function(module) {
-        if (module === 'events') {
-          return window.EventTarget || {};
-        }
-        return {};
-      };
-    }
-  </script>
 </head>
 <body>
   <div id="root"></div>

@@ -17,19 +17,26 @@ export const LicenseInputPage: React.FC = () => {
       return;
     }
 
-    if (!window.electronAPI || !window.electronAPI.license) {
-      setError('Uygulama Electron ortamında çalışmıyor');
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
 
     try {
-      const result = await window.electronAPI.license.verify(keyToUse);
+      // HTTP API kullanarak lisans doğrulama
+      const response = await fetch('http://localhost:8001/api/license/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: keyToUse })
+      });
       
-      if (result.valid) {
-        await window.electronAPI.license.saveKey(keyToUse);
+      const result = await response.json();
+      
+      if (result.status) {
+        // IPC ile lisansı kaydet
+        if (window.electronAPI && window.electronAPI.invoke) {
+          await window.electronAPI.invoke('license:save', keyToUse);
+        }
       } else {
         setError(result.message || 'Geçersiz API anahtarı');
       }
@@ -46,11 +53,11 @@ export const LicenseInputPage: React.FC = () => {
       try {
         if (window.electronAPI && window.electronAPI.license) {
           // Get hardware info
-          const hwInfo = await window.electronAPI.license.getHardwareInfo();
+          const hwInfo = await window.electronAPI.invoke('license:getHardwareInfo');
           setHardwareInfo(hwInfo);
 
           // Check saved key but DON'T auto-verify
-          const savedKey = await window.electronAPI.license.getSavedKey();
+          const savedKey = await window.electronAPI.invoke('license:getSavedKey');
           if (savedKey) {
             setApiKey(savedKey);
             // Removed auto-verification - user must click button

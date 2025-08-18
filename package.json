@@ -4,16 +4,17 @@
   "description": "Electron tabanlı kiosk yazılımı - API key lisans doğrulama sistemi",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:preload\"",
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:preload\" \"npm:dev:start\"",
     "dev:main": "webpack --config webpack.main.config.js --mode development --watch",
     "dev:preload": "webpack --config webpack.preload.config.js --mode development --watch",
     "dev:renderer": "webpack serve --config webpack.renderer.config.js --mode development",
-    "build": "npm run build:preload && npm run build:main && npm run build:renderer",
+    "dev:start": "wait-on http://localhost:3000 && electron .",
+    "build": "rimraf dist && npm run build:preload && npm run build:main && npm run build:renderer",
     "build:main": "webpack --config webpack.main.config.js --mode production",
     "build:preload": "webpack --config webpack.preload.config.js --mode production",
     "build:renderer": "webpack --config webpack.renderer.config.js --mode production",
     "start": "electron .",
-    "postinstall": "electron-rebuild",
+    "postinstall": "electron-builder install-app-deps",
     "pack": "npm run build && electron-builder",
     "dist": "npm run build && electron-builder --publish=never",
     "release": "npm run build && electron-builder --publish=always",
@@ -44,6 +45,7 @@
     "autoprefixer": "^10.4.21",
     "buffer": "^6.0.3",
     "concurrently": "^8.2.2",
+    "copy-webpack-plugin": "^13.0.1",
     "crypto-browserify": "^3.12.1",
     "css-loader": "^6.8.1",
     "electron": "^28.1.0",
@@ -65,9 +67,10 @@
     "tailwindcss": "^4.1.11",
     "ts-loader": "^9.5.1",
     "typescript": "^5.3.3",
-    "webpack": "^5.89.0",
+    "wait-on": "^8.0.4",
+    "webpack": "^5.101.1",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.1"
+    "webpack-dev-server": "^5.2.2"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -118,6 +121,7 @@
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.294.0",
+    "net-browserify": "^0.2.4",
     "next-themes": "^0.4.6",
     "portfinder": "^1.0.37",
     "quick.db": "^9.1.7",
@@ -142,8 +146,13 @@
     "directories": {
       "output": "release"
     },
+
     "files": [
-      "dist/**/*",
+      "dist/main.js",
+      "dist/preload.js", 
+      "dist/renderer.js",
+      "dist/index.html",
+      "dist/assets/**/*",
       "node_modules/**/*",
       "package.json",
       "!node_modules/**/test/**",
@@ -163,6 +172,7 @@
     "npmRebuild": true,
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
+    "asar": true,
     "publish": {
       "provider": "github",
       "owner": "iOwsla",

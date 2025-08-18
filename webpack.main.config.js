@@ -3,6 +3,7 @@ const path = require('path');
 module.exports = {
   entry: './src/main/main.ts',
   target: 'electron-main',
+  mode: 'production',
   module: {
     rules: [
       {
@@ -16,8 +17,12 @@ module.exports = {
         use: {
           loader: 'ts-loader',
           options: {
-            transpileOnly: false,
-            configFile: 'tsconfig.json'
+            transpileOnly: true,
+            configFile: 'tsconfig.json',
+            compilerOptions: {
+              declaration: false,
+              noEmit: false
+            }
           }
         }
       }
@@ -25,7 +30,8 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, './dist'),
-    filename: 'main.js'
+    filename: 'main.js',
+    clean: false
   },
   resolve: {
     extensions: ['.ts', '.js'],

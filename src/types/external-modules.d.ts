@@ -12,3 +12,8 @@ declare module 'get-pixels' {
   const getPixels: any;
   export default getPixels;
 }
+
+declare module '*.svg' {
+  const content: string;
+  export default content;
+}

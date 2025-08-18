@@ -1,34 +1,24 @@
 import { app, BrowserWindow, ipcMain, Menu } from 'electron';
-import { APIServer } from '../../api/server';
-import { IPC_CHANNELS, PRINTER_IPC } from '../../shared/types';
-import { LicenseManager } from './services/LicenseManager';
+import { IPC_CHANNELS } from '../../shared/types';
 import { WindowManager } from './services/WindowManager';
-import { PortManager } from './services/PortManager';
 import { UpdateManager } from './services/UpdateManager';
-import { printerManager } from './services/PrinterManager';
+import { LicenseManager } from './services/LicenseManager';
 import { logger } from '../../api/utils/logger';
-import { QuickDBManager } from './database/QuickDBManager';
 
 // test
 
 class KioskApp {
-  private apiServer: APIServer;
-  private licenseManager: LicenseManager;
   private windowManager: WindowManager;
-  private portManager: PortManager;
   private updateManager: UpdateManager;
-  private printerManager = printerManager;
-  private dbManager: QuickDBManager | null = null;
+  private licenseManager: LicenseManager;
   private isDev: boolean;
 
   constructor() {
     this.isDev = process.env.NODE_ENV === 'development';
-    this.apiServer = new APIServer(3001);
-    this.licenseManager = new LicenseManager();
     this.windowManager = new WindowManager(this.isDev);
-    this.portManager = PortManager.getInstance();
     this.updateManager = UpdateManager.getInstance();
-
+    this.licenseManager = new LicenseManager();
+    
     this.setupApp();
     this.setupIPC();
   }
@@ -63,43 +53,17 @@ class KioskApp {
   private async initialize(): Promise<void> {
     try {
       logger.info('Initializing Kiosk Application');
-
-      // Initialize QuickDB database
-      this.dbManager = QuickDBManager.getInstance();
-      logger.info('Database initialized');
-
-      // Start port monitoring
-      this.portManager.startPortMonitoring();
       
       // Start auto update checking (every 60 minutes)
       this.updateManager.startAutoUpdateCheck(60);
-
-      // Start API server
-      try {
-        await this.apiServer.start();
-        logger.info('API Server started successfully on port 3001');
-      } catch (apiError) {
-        logger.error('Failed to start API server', { apiError });
-        // Continue without API server even in production
-        // API server is not critical for basic app functionality
-        console.error('Warning: API Server could not start, continuing without it');
-      }
 
       // Remove menu in production
       if (!this.isDev) {
         Menu.setApplicationMenu(null);
       }
 
-      // Check license status and show appropriate window
-      const hasValidLicense = await this.licenseManager.checkInitialLicense();
-      
-      if (hasValidLicense) {
-        this.windowManager.showKioskWindow();
-        // Start background license verification using verify endpoint
-        this.licenseManager.startBackgroundVerification();
-      } else {
-        this.windowManager.showLicenseInputWindow();
-      }
+      // Show main kiosk window
+      this.windowManager.showKioskWindow();
 
       logger.info('Kiosk Application initialized successfully');
     } catch (error) {
@@ -109,225 +73,99 @@ class KioskApp {
   }
 
   private setupIPC(): void {
-    // License verification
-    ipcMain.handle(IPC_CHANNELS.LICENSE_VERIFY, async (event, apiKey: string) => {
-      try {
-        const result = await this.licenseManager.verifyLicense(apiKey);
-        if (result.valid) {
-          // Switch to kiosk window on successful verification
-          this.windowManager.showKioskWindow();
-          // Start background verification using verify endpoint
-          this.licenseManager.startBackgroundVerification();
-        }
-        return result;
-      } catch (error) {
-        logger.error('IPC License verification failed', { error });
-        return { valid: false, message: 'Verification failed' };
-      }
-    });
-
-    // Get license status
-    ipcMain.handle(IPC_CHANNELS.LICENSE_STATUS, async () => {
-      try {
-        return await this.licenseManager.getLicenseStatus();
-      } catch (error) {
-        logger.error('IPC License status check failed', { error });
-        return { valid: false, message: 'Status check failed' };
-      }
-    });
-
-    // Save API key
-    ipcMain.handle(IPC_CHANNELS.LICENSE_SAVE_KEY, async (event, apiKey: string) => {
-      try {
-        await this.licenseManager.saveApiKey(apiKey);
-        return { success: true };
-      } catch (error) {
-        logger.error('IPC Save API key failed', { error });
-        return { success: false, message: 'Failed to save API key' };
-      }
-    });
-
-    // Get saved API key
-    ipcMain.handle(IPC_CHANNELS.LICENSE_GET_KEY, async () => {
-      try {
-        return await this.licenseManager.getSavedApiKey();
-      } catch (error) {
-        logger.error('IPC Get API key failed', { error });
-        return null;
-      }
-    });
-
-    // Get hardware info
-    ipcMain.handle(IPC_CHANNELS.LICENSE_GET_HARDWARE_INFO, async () => {
-      try {
-        return await this.licenseManager.getHardwareInfo();
-      } catch (error) {
-        logger.error('IPC Get hardware info failed', { error });
-        return null;
-      }
-    });
-
     // App version
     ipcMain.handle('app:getVersion', () => {
       return app.getVersion();
     });
 
-    // Window controls
-    ipcMain.handle(IPC_CHANNELS.WINDOW_SHOW_KIOSK, () => {
-      this.windowManager.showKioskWindow();
+    // License management IPC handlers
+    ipcMain.handle('license:validate', async (_, licenseKey: string) => {
+      try {
+        // Use axios-based API verification
+        return await this.licenseManager.verifyLicenseViaAPI(licenseKey);
+      } catch (error) {
+        logger.error('IPC License validation failed', { error });
+        throw error;
+      }
     });
 
-    ipcMain.handle(IPC_CHANNELS.WINDOW_SHOW_LICENSE_INPUT, () => {
-      this.windowManager.showLicenseInputWindow();
+    ipcMain.handle('license:getStatus', () => {
+      try {
+        return this.licenseManager.getLicenseStatus();
+      } catch (error) {
+        logger.error('IPC Get license status failed', { error });
+        throw error;
+      }
     });
 
-    ipcMain.handle(IPC_CHANNELS.WINDOW_SHOW_LICENSE_RENEWAL, () => {
-      this.windowManager.showLicenseRenewalWindow();
+    ipcMain.handle('license:save', async (_, licenseKey: string) => {
+      try {
+        return await this.licenseManager.saveLicense(licenseKey);
+      } catch (error) {
+        logger.error('IPC Save license failed', { error });
+        throw error;
+      }
     });
 
     // App controls
     ipcMain.handle(IPC_CHANNELS.APP_QUIT, () => {
       this.shutdown();
     });
-    // Printer IPC
-    ipcMain.handle(PRINTER_IPC.GET_SETTINGS, () => this.printerManager.getSettings());
-    ipcMain.handle(PRINTER_IPC.SET_SETTINGS, (_e, next) => this.printerManager.setSettings(next));
-    ipcMain.handle(PRINTER_IPC.LIST, () => this.printerManager.listPrinters());
-    ipcMain.handle(PRINTER_IPC.ADD_IP, (_e, cfg) => this.printerManager.addIPPrinter(cfg));
-    ipcMain.handle(PRINTER_IPC.REMOVE, (_e, id) => this.printerManager.removePrinter(id));
-    ipcMain.handle(PRINTER_IPC.GET_ACTIVE, () => this.printerManager.getActivePrinter());
-    ipcMain.handle(PRINTER_IPC.SET_ACTIVE, (_e, id) => this.printerManager.setActivePrinter(id));
-    ipcMain.handle(PRINTER_IPC.PRINT_TEST, (_e, id?) => this.printerManager.printTest(id));
-    ipcMain.handle(PRINTER_IPC.PRINT_JOB, (_e, job) => this.printerManager.printJob(job));
-    ipcMain.handle(PRINTER_IPC.DISCOVER_IP, (_e, range) => this.printerManager.discoverIPPrinters(range));
-
-    ipcMain.handle(IPC_CHANNELS.APP_MINIMIZE, () => {
-      const focusedWindow = BrowserWindow.getFocusedWindow();
-      if (focusedWindow) {
-        focusedWindow.minimize();
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.APP_MAXIMIZE, () => {
-      const focusedWindow = BrowserWindow.getFocusedWindow();
-      if (focusedWindow) {
-        if (focusedWindow.isMaximized()) {
-          focusedWindow.unmaximize();
-        } else {
-          focusedWindow.maximize();
-        }
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.APP_OPEN_DEVTOOLS, () => {
-      const win = BrowserWindow.getFocusedWindow() || this.windowManager.getCurrentWindow();
-      if (win) {
-        win.webContents.openDevTools({ mode: 'detach' });
-      }
-    });
-
-    // Port management IPC handlers
-    ipcMain.handle(IPC_CHANNELS.PORT_GET_STATUS, async () => {
-      try {
-        const currentPort = this.portManager.getCurrentPort();
-        const isAvailable = await this.portManager.isPortAvailable(currentPort);
-        return {
-          port: currentPort,
-          isAvailable,
-          isInUse: !isAvailable
-        };
-      } catch (error) {
-        logger.error('IPC Port status check failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.PORT_CHECK, async (event, port: number) => {
-      try {
-        const isAvailable = await this.portManager.isPortAvailable(port);
-        return {
-          port,
-          isAvailable,
-          isInUse: !isAvailable
-        };
-      } catch (error) {
-        logger.error('IPC Port check failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.PORT_FIND_AVAILABLE, async (event, startPort: number = 3000) => {
-      try {
-        const availablePort = await this.portManager.findAvailablePort(startPort);
-        return availablePort;
-      } catch (error) {
-        logger.error('IPC Find available port failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.PORT_SCAN_RANGE, async (event, startPort: number, endPort: number) => {
-      try {
-        const results = await this.portManager.scanPortRange(startPort, endPort);
-        return {
-          startPort,
-          endPort,
-          results,
-          totalScanned: results.length,
-          availablePorts: results.filter(r => r.isAvailable).map(r => r.port),
-          usedPorts: results.filter(r => r.isInUse).map(r => r.port)
-        };
-      } catch (error) {
-        logger.error('IPC Port scan failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.PORT_RESOLVE_CONFLICT, async () => {
-      try {
-        return await this.portManager.checkAndResolvePortConflict();
-      } catch (error) {
-        logger.error('IPC Port conflict resolution failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.PORT_SET_CURRENT, async (event, port: number) => {
-      try {
-        const isAvailable = await this.portManager.isPortAvailable(port);
-        if (!isAvailable) {
-          throw new Error('Port is not available');
-        }
-        this.portManager.setCurrentPort(port);
-        return { success: true, port };
-      } catch (error) {
-        logger.error('IPC Set current port failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.PORT_START_MONITORING, () => {
-      try {
-        this.portManager.startPortMonitoring();
-        return { success: true };
-      } catch (error) {
-        logger.error('IPC Start port monitoring failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.PORT_STOP_MONITORING, () => {
-      try {
-        this.portManager.stopPortMonitoring();
-        return { success: true };
-      } catch (error) {
-        logger.error('IPC Stop port monitoring failed', { error });
-        throw error;
-      }
-    });
 
     // Update management IPC handlers
-    ipcMain.handle(IPC_CHANNELS.UPDATE_GET_STATUS, () => {
+    ipcMain.handle('update:check', async () => {
+      try {
+        return await this.updateManager.checkForUpdates();
+      } catch (error) {
+        logger.error('IPC Update check failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('update:download', async () => {
+      try {
+        return await this.updateManager.downloadUpdate();
+      } catch (error) {
+        logger.error('IPC Update download failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('update:install', async () => {
+      try {
+        return await this.updateManager.installUpdate();
+      } catch (error) {
+        logger.error('IPC Update install failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('update:startAutoCheck', async (_, intervalMinutes: number) => {
+      try {
+        this.updateManager.startAutoUpdateCheck(intervalMinutes);
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Start auto check failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('update:stopAutoCheck', async () => {
+      try {
+        this.updateManager.stopAutoUpdateCheck();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Stop auto check failed', { error });
+        throw error;
+      }
+    });
+
+
+
+
+
+    // Update management IPC handlers
+    ipcMain.handle('update:getStatus', () => {
       try {
         return this.updateManager.getStatus();
       } catch (error) {
@@ -336,81 +174,13 @@ class KioskApp {
       }
     });
 
-    ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async () => {
-      try {
-        return await this.updateManager.checkForUpdates();
-      } catch (error) {
-        logger.error('IPC Check for updates failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
-      try {
-        await this.updateManager.downloadUpdate();
-        return { success: true };
-      } catch (error) {
-        logger.error('IPC Download update failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL, async () => {
-      try {
-        await this.updateManager.installUpdate();
-        return { success: true };
-      } catch (error) {
-        logger.error('IPC Install update failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.UPDATE_START_AUTO_CHECK, (event, intervalMinutes: number = 60) => {
-      try {
-        this.updateManager.startAutoUpdateCheck(intervalMinutes);
-        return { success: true, intervalMinutes };
-      } catch (error) {
-        logger.error('IPC Start auto update check failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.UPDATE_STOP_AUTO_CHECK, () => {
-      try {
-        this.updateManager.stopAutoUpdateCheck();
-        return { success: true };
-      } catch (error) {
-        logger.error('IPC Stop auto update check failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.UPDATE_SET_SETTINGS, (event, settings: { autoDownload?: boolean; autoInstall?: boolean }) => {
-      try {
-        if (typeof settings.autoDownload === 'boolean') {
-          this.updateManager.setAutoDownload(settings.autoDownload);
-        }
-        if (typeof settings.autoInstall === 'boolean') {
-          this.updateManager.setAutoInstall(settings.autoInstall);
-        }
-        return { success: true, settings };
-      } catch (error) {
-        logger.error('IPC Set update settings failed', { error });
-        throw error;
-      }
-    });
-
-    ipcMain.handle(IPC_CHANNELS.UPDATE_GET_INFO, () => {
+    ipcMain.handle('update:getInfo', () => {
       try {
         const status = this.updateManager.getStatus();
-
         return {
           currentVersion: app.getVersion(),
           appName: app.getName(),
-          updateStatus: status,
-          platform: process.platform,
-          arch: process.arch,
-          nodeVersion: process.version
+          updateStatus: status
         };
       } catch (error) {
         logger.error('IPC Get update info failed', { error });
@@ -425,17 +195,8 @@ class KioskApp {
     try {
       logger.info('Shutting down Kiosk Application');
       
-      // Stop background verification
-      this.licenseManager.stopBackgroundVerification();
-      
-      // Stop port monitoring
-      this.portManager.cleanup();
-      
       // Stop update manager
       this.updateManager.cleanup();
-      
-      // Stop API server
-      await this.apiServer.stop();
       
       // Close all windows
       this.windowManager.closeAllWindows();

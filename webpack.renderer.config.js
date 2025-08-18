@@ -1,16 +1,33 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 
+
 module.exports = {
-  entry: './src/renderer/index.tsx',
-  target: 'electron-renderer',
+  entry: {
+    renderer: './src/renderer/index.tsx'
+  },
+  target: 'web',
+  mode: process.env.NODE_ENV || 'development',
+  devtool: process.env.NODE_ENV === 'production' ? 'source-map' : 'inline-source-map',
   module: {
     rules: [
       {
         test: /\.(ts|tsx)$/,
         include: /src/,
-        use: [{ loader: 'ts-loader' }]
+        use: [{
+          loader: 'ts-loader',
+          options: {
+            transpileOnly: true,
+            configFile: 'tsconfig.json',
+            compilerOptions: {
+              declaration: false,
+              noEmit: false,
+              module: 'ESNext'
+            }
+          }
+        }]
       },
       {
         test: /\.css$/,
@@ -26,29 +43,40 @@ module.exports = {
             }
           }
         ]
+      },
+      {
+        test: /\.(png|jpe?g|gif|svg)$/i,
+        type: 'asset/resource',
+        generator: {
+          filename: 'assets/[name][ext]'
+        }
       }
     ]
   },
   output: {
     path: path.resolve(__dirname, './dist'),
-    filename: 'renderer.js'
+    filename: '[name].js',
+    clean: false
   },
   plugins: [
     new HtmlWebpackPlugin({
       template: './src/renderer/index.html',
-      filename: 'index.html'
+      filename: 'index.html',
+      templateParameters: {
+        isDevelopment: process.env.NODE_ENV !== 'production'
+      }
     }),
+
     new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+      'typeof require': '"function"'
     }),
     new webpack.ProvidePlugin({
       global: 'globalThis',
       process: 'process/browser',
       Buffer: ['buffer', 'Buffer']
     }),
-    new webpack.DefinePlugin({
-      'typeof require': '"function"'
-    })
+    ...(process.env.NODE_ENV !== 'production' ? [new webpack.HotModuleReplacementPlugin()] : [])
   ],
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.jsx'],
@@ -78,7 +106,19 @@ module.exports = {
   },
   devServer: {
     port: 3000,
-    hot: false,
-    historyApiFallback: true
+    hot: true,
+    historyApiFallback: true,
+    client: {
+      overlay: {
+        errors: true,
+        warnings: false
+      },
+      webSocketTransport: 'ws',
+      logging: 'warn'
+    },
+    webSocketServer: 'ws',
+    liveReload: false,
+    static: false,
+    compress: true
   }
 };

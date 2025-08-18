@@ -19,7 +19,7 @@ export class QuickDBManager {
   private constructor() {
     const userDataPath = app.getPath('userData');
     const dbPath = path.join(userDataPath, 'kiosk-hub.db');
-    
+
     this.db = new QuickDB({ filePath: dbPath });
     logger.info('QuickDBManager initialized', { dbPath });
   }
@@ -44,12 +44,12 @@ export class QuickDBManager {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      
+
       // Store device with hwid as key
       await this.db.set(`device_hwid_${device.hwid}`, device);
       // Also store by serial for quick lookup
       await this.db.set(`device_serial_${device.serial}`, device.hwid);
-      
+
       logger.info('Device created successfully', { hwid: device.hwid });
       return device;
     } catch (error) {
@@ -76,7 +76,7 @@ export class QuickDBManager {
         logger.info('Device search by serial completed', { serial, found: false });
         return null;
       }
-      
+
       const device = await this.findDeviceByHwid(hwid);
       logger.info('Device search by serial completed', { serial, found: !!device });
       return device;
@@ -92,7 +92,7 @@ export class QuickDBManager {
         ...device,
         updatedAt: new Date().toISOString()
       };
-      
+
       await this.db.set(`device_hwid_${device.hwid}`, updatedDevice);
       logger.info('Device updated successfully', { hwid: device.hwid });
       return updatedDevice;
@@ -120,13 +120,13 @@ export class QuickDBManager {
     try {
       const allData = await this.db.all();
       const devices: Device[] = [];
-      
+
       for (const [key, value] of Object.entries(allData)) {
         if (key.startsWith('device_hwid_')) {
           devices.push(value as unknown as Device);
         }
       }
-      
+
       logger.info('Retrieved all devices', { count: devices.length });
       return devices;
     } catch (error) {
@@ -139,7 +139,7 @@ export class QuickDBManager {
     try {
       // Check if device already exists
       let device = await this.findDeviceByHwid(hwid);
-      
+
       if (!device) {
         // Check by serial as well
         device = await this.findDeviceBySerial(serial);
