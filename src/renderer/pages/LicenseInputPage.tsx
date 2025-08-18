@@ -105,7 +105,7 @@ export const LicenseInputPage: React.FC = () => {
             <Shield className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">
-            Kiosk Software
+            Gaf Digi Hub
           </h1>
           <p className="text-purple-200 text-sm">
             Lisans anahtarınızı girerek başlayın

@@ -410,7 +410,16 @@ const HomePage: React.FC = () => {
           <div className="flex items-center justify-between mb-4 px-4">
             {/* Logo */}
             <div>
-              <img src={gafYaziLogo} alt="GAF Logo" className="h-10 w-auto" />
+              <img 
+                src={gafYaziLogo} 
+                alt="GAF Logo" 
+                className="h-10 w-auto" 
+                style={{
+                  imageRendering: 'crisp-edges',
+                  WebkitImageRendering: 'crisp-edges',
+                  filter: 'none'
+                } as React.CSSProperties}
+              />
             </div>
             
             {/* Hub Panel Başlığı */}

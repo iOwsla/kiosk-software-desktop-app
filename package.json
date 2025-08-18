@@ -9,7 +9,7 @@
     "dev:preload": "webpack --config webpack.preload.config.js --mode development --watch",
     "dev:renderer": "webpack serve --config webpack.renderer.config.js --mode development",
     "dev:start": "wait-on http://localhost:3000 && electron .",
-    "build": "rimraf dist && npm run build:preload && npm run build:main && npm run build:renderer",
+    "build": "npm run build:preload && npm run build:main && npm run build:renderer",
     "build:main": "webpack --config webpack.main.config.js --mode production",
     "build:preload": "webpack --config webpack.preload.config.js --mode production",
     "build:renderer": "webpack --config webpack.renderer.config.js --mode production",
@@ -30,7 +30,7 @@
     "license",
     "desktop"
   ],
-  "author": "Kiosk Software Team",
+  "author": "Gaf Digi Team",
   "license": "MIT",
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -142,10 +142,12 @@
   },
   "build": {
     "appId": "com.kioskapp.desktop",
-    "productName": "Kiosk Software",
+    "productName": "Gaf Digi Hub",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "icon": "logo.png",
 
     "files": [
       "dist/main.js",
