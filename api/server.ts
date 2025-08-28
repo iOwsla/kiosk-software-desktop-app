@@ -9,6 +9,7 @@ import { licenseRouter } from './routes/license';
 import { orderRouter } from './routes/order';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
+import { cloudApiRouter } from './routes/cloud.api';
 
 export class APIServer {
   private app: express.Application;
@@ -51,7 +52,7 @@ export class APIServer {
 
   private setupRoutes(): void {
     // Health check
-    this.app.get('/health', (req, res) => {
+    this.app.get('/hub/health', (req, res) => {
       res.json({ status: 'OK', timestamp: new Date().toISOString() });
     });
 
@@ -61,6 +62,7 @@ export class APIServer {
     this.app.use('/hub/pavo', pavoRouter);
     this.app.use('/api/license', licenseRouter);
     this.app.use("/hub/order", orderRouter);
+    this.app.use("/hub/cloud", cloudApiRouter);
 
     this.app.use('*', (req, res) => {
       res.status(404).json({ error: 'Route not found' });
