@@ -4,6 +4,7 @@ import { WindowManager } from './services/WindowManager';
 import { UpdateManager } from './services/UpdateManager';
 import { LicenseManager } from './services/LicenseManager';
 import { logger } from '../../api/utils/logger';
+import { APIServer } from '../../api/server';
 
 // test
 
@@ -11,6 +12,7 @@ class KioskApp {
   private windowManager: WindowManager;
   private updateManager: UpdateManager;
   private licenseManager: LicenseManager;
+  private apiServer: APIServer;
   private isDev: boolean;
 
   constructor() {
@@ -18,6 +20,7 @@ class KioskApp {
     this.windowManager = new WindowManager(this.isDev);
     this.updateManager = UpdateManager.getInstance();
     this.licenseManager = new LicenseManager();
+    this.apiServer = new APIServer(3001);
     
     this.setupApp();
     this.setupIPC();
@@ -53,6 +56,11 @@ class KioskApp {
   private async initialize(): Promise<void> {
     try {
       logger.info('Initializing Kiosk Application');
+      
+      // Start API Server
+      await this.apiServer.start();
+      logger.info('✅ API Server started successfully on http://localhost:3001/api');
+      console.log('🚀 API Server is running on port 3001 - http://localhost:3001/api');
       
       // Start auto update checking (every 60 minutes)
       this.updateManager.startAutoUpdateCheck(60);
@@ -194,6 +202,10 @@ class KioskApp {
   private async shutdown(): Promise<void> {
     try {
       logger.info('Shutting down Kiosk Application');
+      
+      // Stop API Server
+      await this.apiServer.stop();
+      logger.info('API Server stopped');
       
       // Stop update manager
       this.updateManager.cleanup();

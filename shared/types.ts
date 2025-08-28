@@ -272,3 +272,53 @@ export interface PavoResponse<T = unknown> {
 
 export interface PavoScanRequest { base?: string; start?: number; end?: number; port?: number; timeoutMs?: number }
 export interface PavoScanResult { devices: string[]; totalScanned: number; }
+
+// API Response Types
+export enum ApiStatus {
+  SUCCESS = 'success',
+  ERROR = 'error',
+  WARNING = 'warning',
+  INFO = 'info'
+}
+
+export enum FAErrorCode {
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  AUTHORIZATION_ERROR = 'AUTHORIZATION_ERROR',
+  NOT_FOUND = 'NOT_FOUND',
+  INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
+  BAD_REQUEST = 'BAD_REQUEST',
+  CONFLICT = 'CONFLICT',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
+  TIMEOUT = 'TIMEOUT',
+  NETWORK_ERROR = 'NETWORK_ERROR'
+}
+
+export enum ErrorSeverity {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  CRITICAL = 'critical'
+}
+
+export interface IApiResponse<T = any> {
+  success: boolean;
+  status: ApiStatus;
+  data: T;
+  meta?: Record<string, any>;
+}
+
+export interface IApiErrorResponse {
+  success: boolean;
+  status: ApiStatus;
+  error: {
+    message: string;
+    code: FAErrorCode;
+    severity: ErrorSeverity;
+    details?: any;
+    timestamp: string;
+    requestId?: string;
+  };
+  meta?: Record<string, any>;
+}

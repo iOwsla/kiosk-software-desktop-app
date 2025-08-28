@@ -55,10 +55,15 @@ export class PavoController {
       const reqBody = _req.body as PavoRequestPayload;
       const deviceId = (_req.body?.deviceId as string) || undefined;
       const deviceState = deviceId ? this.deviceStore.get(deviceId) : undefined;
-      const ip = deviceState?.ipAddress ?? "192.168.1.218";
+      const device = (_req.body?.device as { ip: string, serial: string, fp: string }) || undefined;
+
+      console.log(reqBody);
+      
+      const ip = deviceState?.ipAddress ?? device?.ip ?? "192.168.1.218";
       const port = deviceState?.port ?? "4567";
-      const serial = deviceState?.serialNumber ?? ""
-      const fp = deviceState?.fingerPrint ?? "GAFDIGI_FERHAT_" + serial;
+      const serial = deviceState?.serialNumber ?? device?.serial ?? "";
+      const fp = deviceState?.fingerPrint ?? device?.fp ?? "GAFDIGI_FERHAT_" + serial;
+      
       const baseUrl = `${reqBody.protocol}://${ip}:${port}`;
       const url = `${baseUrl}/${reqBody.endPoint}`;
 
@@ -104,7 +109,7 @@ export class PavoController {
             url,
             method: reqBody.method,
             data: payload,
-            timeout: 10000,
+            timeout: 61000,
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
