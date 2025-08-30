@@ -5,8 +5,8 @@ import { logger } from '../../../api/utils/logger';
 
 export class WindowManager {
   private kioskWindow: BrowserWindow | null = null;
-  private licenseInputWindow: BrowserWindow | null = null;
-  private licenseRenewalWindow: BrowserWindow | null = null;
+  private customWindow: BrowserWindow | null = null;
+  private dealerSettingsWindow: BrowserWindow | null = null;
   private isDev: boolean;
 
   constructor(isDev: boolean = false) {
@@ -55,12 +55,12 @@ export class WindowManager {
     } else {
       // In production, files might be in resources/app/dist
       let indexPath = path.join(__dirname, 'index.html');
-      
+
       // If not found in __dirname, try app.getAppPath()
       if (!fs.existsSync(indexPath)) {
         indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
       }
-      
+
       logger.info('Loading index.html from', { path: indexPath, dirname: __dirname, appPath: app.getAppPath() });
       this.kioskWindow.loadFile(indexPath);
     }
@@ -68,17 +68,7 @@ export class WindowManager {
     this.kioskWindow.once('ready-to-show', () => {
       this.kioskWindow?.show();
       this.kioskWindow?.focus();
-      if (this.isDev) {
-        this.kioskWindow?.webContents.openDevTools();
-      }
-      if (this.isDev) {
-        this.kioskWindow?.webContents.openDevTools();
-      }
-      
-      // Hide other windows
-      this.hideLicenseInputWindow();
-      this.hideLicenseRenewalWindow();
-      
+
       logger.info('Kiosk window shown');
     });
 
@@ -89,129 +79,138 @@ export class WindowManager {
     // Allow normal close/minimize/maximize behavior in production
   }
 
-  public showLicenseInputWindow(): void {
-    if (this.licenseInputWindow) {
-      this.licenseInputWindow.show();
-      this.licenseInputWindow.focus();
-      return;
-    }
-
-    this.licenseInputWindow = new BrowserWindow({
-      width: this.isDev ? 1280 : 800,
-      height: this.isDev ? 720 : 600,
-      center: true,
-      resizable: this.isDev,
-      frame: this.isDev,
-      alwaysOnTop: !this.isDev,
-      icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js'),
-        webSecurity: true
-      },
-      show: false
-    });
-
-    // Load the license input page
-    if (this.isDev) {
-      this.licenseInputWindow.loadURL('http://localhost:3000/#/license-input');
-    } else {
-      let indexPath = path.join(__dirname, 'index.html');
-      
-      if (!fs.existsSync(indexPath)) {
-        indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
-      }
-      
-      logger.info('Loading license input page from', { path: indexPath });
-      this.licenseInputWindow.loadFile(indexPath, { hash: 'license-input' });
-    }
-
-    this.licenseInputWindow.once('ready-to-show', () => {
-      this.licenseInputWindow?.show();
-      this.licenseInputWindow?.focus();
-      
-      // Hide other windows
-      this.hideKioskWindow();
-      this.hideLicenseRenewalWindow();
-      
-      logger.info('License input window shown');
-    });
-
-    this.licenseInputWindow.on('closed', () => {
-      this.licenseInputWindow = null;
-    });
-  }
-
-  public showLicenseRenewalWindow(): void {
-    if (this.licenseRenewalWindow) {
-      this.licenseRenewalWindow.show();
-      this.licenseRenewalWindow.focus();
-      return;
-    }
-
-    this.licenseRenewalWindow = new BrowserWindow({
-      width: this.isDev ? 1280 : 800,
-      height: this.isDev ? 720 : 600,
-      center: true,
-      resizable: this.isDev,
-      frame: this.isDev,
-      alwaysOnTop: !this.isDev,
-      icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js'),
-        webSecurity: true
-      },
-      show: false
-    });
-
-    // Load the license renewal page
-    if (this.isDev) {
-      this.licenseRenewalWindow.loadURL('http://localhost:3000/#/license-renewal');
-    } else {
-      let indexPath = path.join(__dirname, 'index.html');
-      
-      if (!fs.existsSync(indexPath)) {
-        indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
-      }
-      
-      logger.info('Loading license renewal page from', { path: indexPath });
-      this.licenseRenewalWindow.loadFile(indexPath, { hash: 'license-renewal' });
-    }
-
-    this.licenseRenewalWindow.once('ready-to-show', () => {
-      this.licenseRenewalWindow?.show();
-      this.licenseRenewalWindow?.focus();
-      
-      // Hide other windows
-      this.hideKioskWindow();
-      this.hideLicenseInputWindow();
-      
-      logger.info('License renewal window shown');
-    });
-
-    this.licenseRenewalWindow.on('closed', () => {
-      this.licenseRenewalWindow = null;
-    });
-  }
-
   public hideKioskWindow(): void {
     if (this.kioskWindow) {
       this.kioskWindow.hide();
     }
   }
 
-  public hideLicenseInputWindow(): void {
-    if (this.licenseInputWindow) {
-      this.licenseInputWindow.hide();
+
+  public showCustomWindow(): void {
+    if (this.customWindow) {
+      this.customWindow.show();
+      this.customWindow.focus();
+      return;
+    }
+
+    this.customWindow = new BrowserWindow({
+      width: 440,
+      height: 650,
+      center: true,
+      resizable: false,
+      frame: true,
+      alwaysOnTop: false,
+      title: 'Günlük Veriler',
+      icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+        webSecurity: true
+      },
+      show: false
+    });
+
+    // Load the custom page
+    if (this.isDev) {
+      this.customWindow.loadURL('http://localhost:3000/custom-page');
+    } else {
+      let indexPath = path.join(__dirname, 'index.html');
+
+      if (!fs.existsSync(indexPath)) {
+        indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+      }
+
+      logger.info('Loading custom page from', { path: indexPath });
+      this.customWindow.loadFile(indexPath);
+      // React Router ile yönlendirme için
+      this.customWindow.webContents.once('did-finish-load', () => {
+        this.customWindow?.webContents.executeJavaScript(`
+          window.history.pushState({}, '', '/custom-page');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        `);
+      });
+    }
+
+    this.customWindow.once('ready-to-show', () => {
+      this.customWindow?.show();
+      this.customWindow?.focus();
+
+      logger.info('Custom window shown');
+    });
+
+    this.customWindow.on('closed', () => {
+      this.customWindow = null;
+    });
+  }
+
+  public hideCustomWindow(): void {
+    if (this.customWindow) {
+      this.customWindow.hide();
     }
   }
 
-  public hideLicenseRenewalWindow(): void {
-    if (this.licenseRenewalWindow) {
-      this.licenseRenewalWindow.hide();
+  public showDealerSettingsWindow(): void {
+    if (this.dealerSettingsWindow) {
+      this.dealerSettingsWindow.show();
+      this.dealerSettingsWindow.focus();
+      return;
+    }
+
+    this.dealerSettingsWindow = new BrowserWindow({
+      width: 600,
+      height: 500,
+      center: true,
+      resizable: false,
+      frame: true,
+      alwaysOnTop: false,
+      title: 'Bayi Ayarları',
+      icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+        webSecurity: true
+      },
+      show: false
+    });
+
+    // Load the dealer settings page
+    if (this.isDev) {
+      this.dealerSettingsWindow.loadURL('http://localhost:3000/dealer-settings');
+    } else {
+      let indexPath = path.join(__dirname, 'index.html');
+
+      if (!fs.existsSync(indexPath)) {
+        indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+      }
+
+      logger.info('Loading dealer settings page from', { path: indexPath });
+      this.dealerSettingsWindow.loadFile(indexPath);
+      // React Router ile yönlendirme için
+      this.dealerSettingsWindow.webContents.once('did-finish-load', () => {
+        this.dealerSettingsWindow?.webContents.executeJavaScript(`
+          window.history.pushState({}, '', '/dealer-settings');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        `);
+      });
+    }
+
+    this.dealerSettingsWindow.once('ready-to-show', () => {
+      this.dealerSettingsWindow?.show();
+      this.dealerSettingsWindow?.focus();
+
+      logger.info('Dealer settings window shown');
+    });
+
+    this.dealerSettingsWindow.on('closed', () => {
+      this.dealerSettingsWindow = null;
+    });
+  }
+
+  public hideDealerSettingsWindow(): void {
+    if (this.dealerSettingsWindow) {
+      this.dealerSettingsWindow.hide();
     }
   }
 
@@ -220,17 +219,17 @@ export class WindowManager {
       this.kioskWindow.destroy();
       this.kioskWindow = null;
     }
-    
-    if (this.licenseInputWindow) {
-      this.licenseInputWindow.destroy();
-      this.licenseInputWindow = null;
+
+    if (this.customWindow) {
+      this.customWindow.destroy();
+      this.customWindow = null;
     }
-    
-    if (this.licenseRenewalWindow) {
-      this.licenseRenewalWindow.destroy();
-      this.licenseRenewalWindow = null;
+
+    if (this.dealerSettingsWindow) {
+      this.dealerSettingsWindow.destroy();
+      this.dealerSettingsWindow = null;
     }
-    
+
     logger.info('All windows closed');
   }
 
@@ -238,15 +237,15 @@ export class WindowManager {
     if (this.kioskWindow && this.kioskWindow.isVisible()) {
       return this.kioskWindow;
     }
-    
-    if (this.licenseInputWindow && this.licenseInputWindow.isVisible()) {
-      return this.licenseInputWindow;
+
+    if (this.customWindow && this.customWindow.isVisible()) {
+      return this.customWindow;
     }
-    
-    if (this.licenseRenewalWindow && this.licenseRenewalWindow.isVisible()) {
-      return this.licenseRenewalWindow;
+
+    if (this.dealerSettingsWindow && this.dealerSettingsWindow.isVisible()) {
+      return this.dealerSettingsWindow;
     }
-    
+
     return null;
   }
 }

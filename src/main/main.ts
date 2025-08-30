@@ -115,6 +115,47 @@ class KioskApp {
       }
     });
 
+    // Window controls
+    ipcMain.handle('window:show-custom', () => {
+      try {
+        this.windowManager.showCustomWindow();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Show custom window failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('window:hide-custom', () => {
+      try {
+        this.windowManager.hideCustomWindow();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Hide custom window failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('window:show-dealer-settings', () => {
+      try {
+        this.windowManager.showDealerSettingsWindow();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Show dealer settings window failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('window:hide-dealer-settings', () => {
+      try {
+        this.windowManager.hideDealerSettingsWindow();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Hide dealer settings window failed', { error });
+        throw error;
+      }
+    });
+
     // App controls
     ipcMain.handle(IPC_CHANNELS.APP_QUIT, () => {
       this.shutdown();

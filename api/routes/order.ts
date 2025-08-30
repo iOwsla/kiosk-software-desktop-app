@@ -5,9 +5,8 @@ import { z } from 'zod';
 import baseApi from '../api';
 import { checkInternetConnection } from '../utils/networkUtils';
 import { OfflineOrderService } from '../services/OfflineOrderService';
-import { DailyOrderService } from '../services/DailyOrderService';
+
 import { LicenseManager } from '@/main/services/LicenseManager';
-import { QuickDBManager } from '../../src/main/database/QuickDBManager';
 
 export const CreateOrderSchema = z.object({
   sequence: z.string().max(10, 'Sıra numarası en fazla 10 karakter olabilir').optional(),
@@ -74,111 +73,16 @@ const getLicenseKey = (): string | null => {
   const licenseStatus = licenseManager.getLicenseStatus();
   return licenseStatus.isValid ? licenseStatus.licenseKey || null : null;
 };
-// Service instance'larını al
+// Service instance'ını al
 const offlineOrderService = OfflineOrderService.getInstance();
-const dailyOrderService = DailyOrderService.getInstance();
-const dbManager = QuickDBManager.getInstance();
-const db = dbManager.getDatabase();
-
-/**
- * Sipariş numarası üretir
- * @param brandId - Marka ID'si
- * @param dealerId - Bayi ID'si
- * @param prefix - Ön ek (varsayılan: 'K')
- * @returns Promise<string> - Üretilen sipariş numarası
- */
-const generateOrderNumber = async (brandId: string, dealerId: string, prefix: string = 'K'): Promise<string> => {
-  const now = new Date();
-  const turkeyTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-
-  // Günlük kullanılan numaralar için key
-  const today = turkeyTime.toISOString().split('T')[0];
-  const usedNumbersKey = `ORDER_NUMBERS:${brandId}:${dealerId}:${today}:used`;
-
-  // Maksimum deneme sayısı
-  const maxAttempts = 50;
-  let attempts = 0;
-  let orderNumber = '';
-
-  while (attempts < maxAttempts) {
-    // Zaman bazlı rastgele sayı üretimi
-    const hours = turkeyTime.getHours();
-    const minutes = turkeyTime.getMinutes();
-    const seconds = turkeyTime.getSeconds();
-    const milliseconds = turkeyTime.getMilliseconds();
-
-    // Rastgele seed oluştur
-    const seed = milliseconds + (seconds * 1000) + (attempts * 137);
-
-    // İlk rakam: 1-9 arası rastgele
-    const digit1 = ((seed * 7 + hours) % 9) + 1;
-
-    // İkinci rakam: 0-9 arası, zaman bazlı karmaşık hesaplama
-    const complexCalc = (minutes * 13 + seconds * 17 + seed) % 100;
-    const digit2 = Math.floor(complexCalc / 10);
-
-    // Üçüncü rakam: 0-9 arası, XOR ve modülo kombinasyonu
-    const xorValue = hours ^ minutes ^ seconds ^ (seed % 256);
-    const digit3 = (xorValue + milliseconds) % 10;
-
-    // Sipariş numarasını oluştur
-    const candidateNumber = `${digit1}${digit2}${digit3}`;
-
-    // Bu numara daha önce kullanılmış mı kontrol et
-    const usedNumbers = await db.get(usedNumbersKey) || [];
-    const isUsed = usedNumbers.includes(candidateNumber);
-
-    if (!isUsed) {
-      // Numarayı kullanılanlar listesine ekle
-      usedNumbers.push(candidateNumber);
-      await db.set(usedNumbersKey, usedNumbers);
-
-      // TTL kontrolü için expiry key'i ayarla (gece yarısına kadar)
-      const expiryKey = `${usedNumbersKey}:expiry`;
-      const existingExpiry = await db.get(expiryKey);
-
-      if (!existingExpiry) {
-        const midnight = new Date(turkeyTime);
-        midnight.setHours(24, 0, 0, 0);
-        await db.set(expiryKey, midnight.getTime());
-
-        // Temizleme işlemi için timeout ayarla
-        const secondsUntilMidnight = Math.ceil((midnight.getTime() - now.getTime()) / 1000);
-        setTimeout(async () => {
-          await db.delete(usedNumbersKey);
-          await db.delete(expiryKey);
-        }, secondsUntilMidnight * 1000);
-      }
-
-      orderNumber = candidateNumber;
-      break;
-    }
-
-    attempts++;
-  }
-
-  // Eğer benzersiz numara bulunamazsa, güvenli fallback
-  if (!orderNumber) {
-    const fallbackKey = `${usedNumbersKey}:fallback`;
-    const fallbackCounter = (await db.get(fallbackKey) || 0) + 1;
-    await db.set(fallbackKey, fallbackCounter);
-    orderNumber = (100 + (fallbackCounter % 900)).toString();
-  }
-
-  return `${prefix}-${orderNumber}`;
-};
 
 router.post('/create', asyncHandler(async (req: Request, res: Response) => {
   try {
     const payload = await CreateOrderSchema.parseAsync(req.body);
 
-    console.log(payload, "Kontrol 1");
-
     if (!payload.sequence) {
-      payload.sequence = await generateOrderNumber(payload.brandId, payload.dealerId);
+      payload.sequence = await offlineOrderService.generateOrderNumber(payload.brandId, payload.dealerId);
     }
-
-    console.log(payload, "Kontrol 2");
 
     const hasInternet = await checkInternetConnection(5000);
 
@@ -194,14 +98,14 @@ router.post('/create', asyncHandler(async (req: Request, res: Response) => {
         });
 
         if (result.data) {
-          const dailyResult = await dailyOrderService.saveDailyOrder(result.data.orderId, payload, false);
-
+          // Online sipariş başarılı olsa da offline veri oluştur
+          const offlineResult = await offlineOrderService.saveOfflineOrder(payload);
+          
           res.status(201).json(createSuccessResponse({
             ...result.data,
-            dailyOrderId: dailyResult.id,
-            tableName: dailyResult.tableName
+            offlineOrderId: offlineResult.orderId,
+            isOfflineBackupCreated: true
           }));
-
         } else {
           res.status(400).json(
             createErrorResponse(
@@ -217,16 +121,12 @@ router.post('/create', asyncHandler(async (req: Request, res: Response) => {
 
         const offlineResult = await offlineOrderService.saveOfflineOrder(payload);
 
-        const dailyResult = await dailyOrderService.saveDailyOrder(offlineResult.orderId, payload, true);
-
         res.status(202).json(
           createSuccessResponse(
             {
               orderId: offlineResult.orderId,
               isOffline: true,
-              message: offlineResult.message,
-              dailyOrderId: dailyResult.id,
-              tableName: dailyResult.tableName
+              message: offlineResult.message
             },
             { message: 'Sipariş offline olarak kaydedildi' }
           )
@@ -237,16 +137,12 @@ router.post('/create', asyncHandler(async (req: Request, res: Response) => {
 
       const offlineResult = await offlineOrderService.saveOfflineOrder(payload);
 
-      const dailyResult = await dailyOrderService.saveDailyOrder(offlineResult.orderId, payload, true);
-
       res.status(202).json(
         createSuccessResponse(
           {
             orderId: offlineResult.orderId,
             isOffline: true,
-            message: offlineResult.message,
-            dailyOrderId: dailyResult.id,
-            tableName: dailyResult.tableName
+            message: offlineResult.message
           },
           { message: 'Sipariş offline olarak kaydedildi' }
         )
@@ -348,27 +244,60 @@ router.post('/offline/sync', asyncHandler(async (req: Request, res: Response) =>
 router.get('/offline/pending', asyncHandler(async (req: Request, res: Response) => {
   try {
     const pendingOrders = await offlineOrderService.getPendingOrders();
+    
+    const formattedOrders = pendingOrders.map(order => ({
+      id: order.id,
+      orderId: order.payload?.sequence || order.id,
+      sequence: order.payload?.sequence || 'N/A',
+      totalAmount: order.payload?.totalAmount || 0,
+      status: order.status,
+      createdAt: order.createdAt,
+      isOffline: true,
+      payload: order.payload
+    }));
 
-    res.status(200).json(
-      createSuccessResponse(
-        {
-          orders: pendingOrders,
-          count: pendingOrders.length
-        },
-        { message: 'Bekleyen siparişler başarıyla alındı' }
-      )
-    );
-  } catch (error: unknown) {
+    res.json(createSuccessResponse({
+      orders: formattedOrders,
+      count: formattedOrders.length
+    }));
+  } catch (error: any) {
     console.error('Bekleyen siparişler alınamadı:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
-    res.status(500).json(
-      createErrorResponse(
-        'Bekleyen siparişler alınamadı',
-        FAErrorCode.INTERNAL_SERVER_ERROR,
-        ErrorSeverity.MEDIUM,
-        errorMessage
-      )
-    );
+    res.status(500).json(createErrorResponse(
+      'Bekleyen siparişler alınamadı',
+      FAErrorCode.INTERNAL_SERVER_ERROR,
+      ErrorSeverity.HIGH,
+      error.message
+    ));
+  }
+}));
+
+router.get('/offline/all', asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const allOrders = await offlineOrderService.getAllOrders();
+    
+    const formattedOrders = allOrders.map(order => ({
+      id: order.id,
+      orderId: order.payload?.sequence || order.id,
+      sequence: order.payload?.sequence || 'N/A',
+      totalAmount: order.payload?.totalAmount || 0,
+      status: order.status,
+      createdAt: order.createdAt,
+      isOffline: true,
+      payload: order.payload
+    }));
+
+    res.json(createSuccessResponse({
+      orders: formattedOrders,
+      count: formattedOrders.length
+    }));
+  } catch (error: any) {
+    console.error('Tüm siparişler alınamadı:', error);
+    res.status(500).json(createErrorResponse(
+      'Tüm siparişler alınamadı',
+      FAErrorCode.INTERNAL_SERVER_ERROR,
+      ErrorSeverity.HIGH,
+      error.message
+    ));
   }
 }));
 
@@ -396,179 +325,7 @@ router.delete('/offline/cleanup', asyncHandler(async (req: Request, res: Respons
   }
 }));
 
-router.get('/daily/stats', asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const dateParam = req.query.date as string;
-    const date = dateParam ? new Date(dateParam) : new Date();
-
-    const stats = await dailyOrderService.getDailyStats(date);
-
-    res.status(200).json(
-      createSuccessResponse(
-        {
-          date: date.toISOString().split('T')[0],
-          ...stats
-        },
-        { message: 'Günlük istatistikler başarıyla alındı' }
-      )
-    );
-  } catch (error: unknown) {
-    console.error('Günlük istatistik hatası:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
-    res.status(500).json(
-      createErrorResponse(
-        'Günlük istatistikler alınamadı',
-        FAErrorCode.INTERNAL_SERVER_ERROR,
-        ErrorSeverity.MEDIUM,
-        { error: errorMessage }
-      )
-    );
-  }
-}));
-
-router.get('/daily/orders', asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const dateParam = req.query.date as string;
-    const date = dateParam ? new Date(dateParam) : new Date();
-
-    const orders = await dailyOrderService.getDailyOrders(date);
-
-    res.status(200).json(
-      createSuccessResponse(
-        {
-          date: date.toISOString().split('T')[0],
-          orders,
-          count: orders.length
-        },
-        { message: 'Günlük siparişler başarıyla alındı' }
-      )
-    );
-  } catch (error: unknown) {
-    console.error('Günlük siparişler alınamadı:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
-    res.status(500).json(
-      createErrorResponse(
-        'Günlük siparişler alınamadı',
-        FAErrorCode.INTERNAL_SERVER_ERROR,
-        ErrorSeverity.MEDIUM,
-        { error: errorMessage }
-      )
-    );
-  }
-}));
-
-router.patch('/daily/status/:orderId', asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const { orderId } = req.params;
-    const { status } = req.body;
-
-    if (!['pending', 'completed', 'cancelled'].includes(status)) {
-      res.status(400).json(
-        createErrorResponse(
-          'Geçersiz durum değeri',
-          FAErrorCode.VALIDATION_ERROR,
-          ErrorSeverity.MEDIUM
-        )
-      );
-      return;
-    }
-
-    const dateParam = req.query.date as string;
-    const date = dateParam ? new Date(dateParam) : new Date();
-
-    const updated = await dailyOrderService.updateOrderStatus(orderId, status, date);
-
-    if (updated) {
-      res.status(200).json(
-        createSuccessResponse(
-          { orderId, status, updated: true },
-          { message: 'Sipariş durumu başarıyla güncellendi' }
-        )
-      );
-    } else {
-      res.status(404).json(
-        createErrorResponse(
-          'Sipariş bulunamadı',
-          FAErrorCode.NOT_FOUND,
-          ErrorSeverity.MEDIUM
-        )
-      );
-    }
-  } catch (error: unknown) {
-    console.error('Sipariş durumu güncellenemedi:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
-    res.status(500).json(
-      createErrorResponse(
-        'Sipariş durumu güncellenemedi',
-        FAErrorCode.INTERNAL_SERVER_ERROR,
-        ErrorSeverity.MEDIUM,
-        { error: errorMessage }
-      )
-    );
-  }
-}));
-
-router.get('/daily/tables', asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const startDateParam = req.query.startDate as string;
-    const endDateParam = req.query.endDate as string;
-
-    const startDate = startDateParam ? new Date(startDateParam) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 gün önce
-    const endDate = endDateParam ? new Date(endDateParam) : new Date();
-
-    const tables = await dailyOrderService.getAvailableTables(startDate, endDate);
-
-    res.status(200).json(
-      createSuccessResponse(
-        {
-          tables,
-          count: tables.length,
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: endDate.toISOString().split('T')[0]
-        },
-        { message: 'Mevcut tablolar başarıyla alındı' }
-      )
-    );
-  } catch (error: unknown) {
-    console.error('Tablolar alınamadı:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
-    res.status(500).json(
-      createErrorResponse(
-        'Tablolar alınamadı',
-        FAErrorCode.INTERNAL_SERVER_ERROR,
-        ErrorSeverity.MEDIUM,
-        { error: errorMessage }
-      )
-    );
-  }
-}));
-
-router.delete('/daily/cleanup', asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const daysToKeep = parseInt(req.query.days as string) || 30;
-
-    const cleanedCount = await dailyOrderService.cleanOldTables(daysToKeep);
-
-    res.status(200).json(
-      createSuccessResponse(
-        { cleanedCount, daysToKeep },
-        { message: `${cleanedCount} eski tablo temizlendi` }
-      )
-    );
-  } catch (error: unknown) {
-    console.error('Eski tablolar temizlenemedi:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
-    res.status(500).json(
-      createErrorResponse(
-        'Eski tablolar temizlenemedi',
-        FAErrorCode.INTERNAL_SERVER_ERROR,
-        ErrorSeverity.MEDIUM,
-        { error: errorMessage }
-      )
-    );
-  }
-}));
-
+// Günlük siparişleri getir (tüm siparişler - senkronize edilenler dahil)
 
 
 export { router as orderRouter };

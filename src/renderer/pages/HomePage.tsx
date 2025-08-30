@@ -27,6 +27,27 @@ const HomePage: React.FC = () => {
   const [licenseError, setLicenseError] = useState<string | null>(null);
   const [licenseKey, setLicenseKey] = useState('');
 
+  // Yeni pencere açma fonksiyonu
+  const openNewWindow = async () => {
+    try {
+      await (window as any).electronAPI?.window?.showCustom();
+    } catch (error) {
+      console.error('Yeni pencere açılamadı:', error);
+    }
+  };
+
+  // Otomatik pencere açma
+  useEffect(() => {
+    const autoOpenWindow = async () => {
+      // 2 saniye bekleyip otomatik olarak yeni pencere aç
+      setTimeout(() => {
+        openNewWindow();
+      }, 2000);
+    };
+
+    autoOpenWindow();
+  }, []);
+
   // Güncelleme kontrol fonksiyonları
   const checkForUpdates = async () => {
     if (!window.electronAPI || !window.electronAPI.invoke) {
@@ -428,13 +449,26 @@ const HomePage: React.FC = () => {
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">Hub Panel</h1>
                 <p className="text-sm text-slate-600 font-medium mt-1">v1.3.0</p>
               </div>
-              <button 
-                onClick={checkForUpdates}
-                className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 text-white"
-                title="Güncelleme Kontrol Et"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
+              <div className="flex items-center space-x-2">
+                <button 
+                  onClick={() => {
+                    if (window.electronAPI?.window?.showDealerSettings) {
+                      window.electronAPI.window.showDealerSettings();
+                    }
+                  }}
+                  className="p-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 text-white"
+                  title="Bayi Ayarları"
+                >
+                  <Key className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={checkForUpdates}
+                  className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 text-white"
+                  title="Güncelleme Kontrol Et"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
 

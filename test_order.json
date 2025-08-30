@@ -1,0 +1,21 @@
+{
+  "dealerId": "69033036-3425-11f0-822e-02420a00010f",
+  "brandId": "6df4b624-f1e9-11ef-bba4-0242ac120005",
+  "deviceId": "83d6524a-3a55-11f0-ae47-02420a00010f",
+  "tableId": null,
+  "tableNumber": null,
+  "type": "KIOSK_DINE_IN",
+  "status": "PENDING",
+  "priority": 1,
+  "estimatedTime": 20,
+  "customerName": null,
+  "customerPhone": null,
+  "notes": "Test siparişi - ekstra soslu",
+  "totalAmount": 45.50,
+  "subtotal": 40.00,
+  "extrasTotal": 5.50,
+  "extrasSubtotal": 4.50,
+  "discount": 0,
+  "paymentType": "CASH",
+  "items": []
+}

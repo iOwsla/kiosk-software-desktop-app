@@ -25,6 +25,14 @@ interface ElectronAPI {
     quit: () => Promise<void>;
   };
   
+  // Window operations
+  window: {
+    showCustom: () => Promise<{ success: boolean }>;
+    hideCustom: () => Promise<{ success: boolean }>;
+    showDealerSettings: () => Promise<{ success: boolean }>;
+    hideDealerSettings: () => Promise<{ success: boolean }>;
+  };
+  
   // Update operations
   update: {
     getStatus: () => Promise<UpdateStatus>;
@@ -53,6 +61,17 @@ const electronAPI: ElectronAPI = {
   app: {
     quit: () => 
       ipcRenderer.invoke('app:quit')
+  },
+  
+  window: {
+    showCustom: () => 
+      ipcRenderer.invoke('window:show-custom'),
+    hideCustom: () => 
+      ipcRenderer.invoke('window:hide-custom'),
+    showDealerSettings: () => 
+      ipcRenderer.invoke('window:show-dealer-settings'),
+    hideDealerSettings: () => 
+      ipcRenderer.invoke('window:hide-dealer-settings')
   },
   
   update: {
