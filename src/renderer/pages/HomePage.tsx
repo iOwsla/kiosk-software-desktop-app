@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Shield, Check, X, RefreshCw, Download, Key, AlertTriangle, Sparkles } from 'lucide-react';
+import { Shield, Check, X, RefreshCw, Download, Key, AlertTriangle, Sparkles, Moon, Settings, Calendar, Clock, BarChart3, FileText, Power } from 'lucide-react';
 import gafYaziLogo from '../logotext.svg';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
@@ -26,6 +26,7 @@ const HomePage: React.FC = () => {
   const [showLicenseInput, setShowLicenseInput] = useState(false);
   const [licenseError, setLicenseError] = useState<string | null>(null);
   const [licenseKey, setLicenseKey] = useState('');
+  const [systemStats, setSystemStats] = useState({ cpuUsage: 0, memoryUsage: 0 });
 
   // Yeni pencere açma fonksiyonu
   const openNewWindow = async () => {
@@ -217,6 +218,18 @@ const HomePage: React.FC = () => {
     setLicenseError(null);
   };
 
+  // System stats update function
+  const updateSystemStats = async () => {
+    if (window.electronAPI && window.electronAPI.invoke) {
+      try {
+        const stats = await window.electronAPI.invoke('system:getStats');
+        setSystemStats(stats);
+      } catch (error) {
+        console.error('Failed to get system stats:', error);
+      }
+    }
+  };
+
   useEffect(() => {
     // Version bilgisini al
     if (window.electronAPI && window.electronAPI.getAppVersion) {
@@ -234,7 +247,9 @@ const HomePage: React.FC = () => {
     // Lisans durumunu kontrol et
     checkLicenseStatus();
 
-
+    // System stats'ı al ve periyodik olarak güncelle
+    updateSystemStats();
+    const statsInterval = setInterval(updateSystemStats, 5000); // Her 5 saniyede bir güncelle
 
     // Güncelleme durumunu dinle
     interface UpdateNotification {
@@ -289,6 +304,7 @@ const HomePage: React.FC = () => {
     // Cleanup
     return () => {
       clearTimeout(initialCheckTimer);
+      clearInterval(statsInterval);
       if (window.electronAPI && window.electronAPI.off) {
         window.electronAPI.off.updateStatus(handleUpdateStatus);
       }
@@ -313,221 +329,242 @@ const HomePage: React.FC = () => {
     return () => clearInterval(timer);
   }, [licenseExpiresAt]);
 
-
-
-
-
   return (
-    <div className="w-[600px] h-[400px] mx-auto my-auto flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 rounded-2xl shadow-2xl border border-white/20">
-      <div className="flex flex-col overflow-hidden p-4">
-        {/* Lisans kontrol bildirimi */}
-        {isLicenseValid === false && (
-          <div className="mb-3 p-4 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200/50 rounded-xl shadow-lg backdrop-blur-sm">
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="p-2 bg-red-100 rounded-full">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
+    <div className="w-[600px] h-[400px] mx-auto my-auto flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Custom Title Bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-slate-800/50 to-slate-700/50 border-b border-slate-600/30 backdrop-blur-sm" style={{WebkitAppRegion: 'drag'} as React.CSSProperties}>
+        <div className="flex items-center space-x-3">
+          <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+            <img 
+              src={gafYaziLogo} 
+              alt="GAF Logo" 
+              className="h-8 w-auto" 
+              style={{
+                imageRendering: 'crisp-edges',
+                WebkitImageRendering: 'crisp-edges',
+                filter: 'brightness(0) invert(1) drop-shadow(0 0 8px rgba(255,255,255,0.3))'
+              } as React.CSSProperties}
+            />
+          </div>
+          <span className="text-white font-semibold text-sm">Kiosk Hub Panel</span>
+        </div>
+        <div className="flex items-center space-x-1" style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}>
+          <button 
+            onClick={checkForUpdates}
+            className="p-1.5 hover:bg-slate-600/50 rounded-md transition-colors"
+            title="Güncelleme Kontrol Et"
+          >
+            <RefreshCw className="h-3.5 w-3.5 text-white/70" />
+          </button>
+          <button 
+            onClick={() => {
+              if (window.electronAPI?.invoke) {
+                window.electronAPI.invoke('window:hide-kiosk');
+              } else {
+                window.close();
+              }
+            }}
+            className="p-1.5 hover:bg-red-600/50 rounded-md transition-colors"
+            title="Gizle"
+          >
+            <X className="h-3.5 w-3.5 text-white/70" />
+          </button>
+        </div>
+      </div>
+
+      {/* License Warning */}
+      {isLicenseValid === false && (
+        <div className="mx-4 mt-3 p-3 bg-gradient-to-r from-red-900/50 to-red-800/50 border border-red-600/30 rounded-lg backdrop-blur-sm">
+          <div className="flex items-center space-x-3 mb-2">
+            <AlertTriangle className="h-4 w-4 text-red-400" />
+            <span className="text-red-300 font-medium text-sm">Lisans Gerekli</span>
+          </div>
+          {showLicenseInput && (
+            <div className="space-y-2">
+              <div className="flex space-x-2">
+                <Input
+                  type="text"
+                  placeholder="Lisans anahtarı..."
+                  value={licenseKey}
+                  onChange={handleLicenseKeyChange}
+                  className="flex-1 text-xs h-8 bg-slate-800/50 border-red-600/50 text-white placeholder-slate-400"
+                  disabled={isCheckingLicense}
+                />
+                <Button 
+                  onClick={validateLicense}
+                  disabled={isCheckingLicense || !licenseKey.trim()}
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 h-8 px-3 text-xs"
+                >
+                  {isCheckingLicense ? <LoadingSpinner size="small" /> : <Key className="h-3 w-3" />}
+                </Button>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-red-900">Lisans Gerekli</h3>
-                <p className="text-xs text-red-700/80">Geçerli lisans anahtarı gereklidir.</p>
-              </div>
+              {licenseError && (
+                <div className="text-xs text-red-400">{licenseError}</div>
+              )}
             </div>
-            {showLicenseInput && (
-              <div className="mt-3 space-y-3">
-                <div className="flex space-x-2">
-                  <Input
-                    type="text"
-                    placeholder="Lisans anahtarı..."
-                    value={licenseKey}
-                    onChange={handleLicenseKeyChange}
-                    className="flex-1 text-xs h-9 bg-white/80 border-red-200 focus:border-red-400 rounded-lg shadow-sm"
-                    disabled={isCheckingLicense}
-                  />
-                  <Button 
-                    onClick={validateLicense}
-                    disabled={isCheckingLicense || !licenseKey.trim()}
-                    size="sm"
-                    className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 h-9 px-4 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105"
-                  >
-                    {isCheckingLicense ? (
-                      <LoadingSpinner size="small" />
-                    ) : (
-                      <>
-                        <Key className="h-4 w-4 mr-2" />
-                        <span className="text-xs font-medium">Doğrula</span>
-                      </>
-                    )}
-                  </Button>
+          )}
+        </div>
+      )}
+
+      {/* Update Notification */}
+      {updateAvailable && (
+        <div className="mx-4 mt-3 p-3 bg-gradient-to-r from-blue-900/50 to-blue-800/50 border border-blue-600/30 rounded-lg backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Download className="h-4 w-4 text-blue-400" />
+              <span className="text-blue-300 font-medium text-sm">Güncelleme: v{updateInfo?.version}</span>
+            </div>
+            {isDownloading ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-20 bg-blue-800 rounded-full h-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${downloadProgress}%` }}
+                  ></div>
                 </div>
-                {licenseError && (
-                  <div className="flex items-center space-x-2 p-2 bg-red-100/50 rounded-lg">
-                    <X className="h-4 w-4 text-red-600" />
-                    <span className="text-xs text-red-700 font-medium">{licenseError}</span>
-                  </div>
-                )}
+                <span className="text-xs text-blue-300">{downloadProgress}%</span>
               </div>
+            ) : (
+              <Button 
+                onClick={startDownload}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 h-8 px-3 text-xs"
+              >
+                İndir
+              </Button>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Güncelleme bildirimi */}
-        {updateAvailable && (
-          <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200/50 rounded-xl shadow-lg backdrop-blur-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-full">
-                  <Download className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-blue-900">
-                    Güncelleme: v{updateInfo?.version}
-                  </h3>
-                  <p className="text-xs text-blue-700/80">
-                    {updateInfo?.size && `Boyut: ${updateInfo.size}`}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                {isDownloading ? (
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 bg-blue-200/50 rounded-full h-3 shadow-inner">
-                      <div 
-                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300 shadow-sm" 
-                        style={{ width: `${downloadProgress}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-sm font-medium text-blue-700">{downloadProgress}%</span>
-                  </div>
-                ) : (
-                  <Button 
-                    onClick={startDownload}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    İndir
-                  </Button>
-                )}
-              </div>
+      {/* Main Content */}
+      <div className="flex-1 p-4 overflow-hidden">
+        {/* Status Cards */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {/* System Status */}
+          <div className="bg-gradient-to-br from-slate-800/80 to-slate-700/80 rounded-lg p-3 border border-slate-600/30 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-slate-300 text-xs font-medium">Sistem</span>
+              <Check className="h-4 w-4 text-green-400" />
             </div>
-            {updateInfo?.notes && updateInfo.notes.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-blue-200/50">
-                <h4 className="text-sm font-semibold text-blue-900 mb-3">Güncelleme notları:</h4>
-                <ul className="text-sm text-blue-700/90 space-y-2">
-                  {updateInfo.notes.map((note, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="text-blue-500 mt-1 font-bold">•</span>
-                      <span>{note}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <span className="text-slate-400">CPU:</span>
+              <span className="text-white font-bold">{systemStats.cpuUsage}%</span>
+              <span className="text-slate-400">RAM:</span>
+              <span className="text-white font-bold">{systemStats.memoryUsage}%</span>
+            </div>
           </div>
-        )}
 
-        {/* Ana İçerik */}
-        <div className="text-center">
-          {/* Logo ve Hub Panel Başlığı */}
-          <div className="flex items-center justify-between mb-4 px-4">
-            {/* Logo */}
-            <div>
-              <img 
-                src={gafYaziLogo} 
-                alt="GAF Logo" 
-                className="h-10 w-auto" 
-                style={{
-                  imageRendering: 'crisp-edges',
-                  WebkitImageRendering: 'crisp-edges',
-                  filter: 'none'
-                } as React.CSSProperties}
-              />
+          {/* License Status */}
+          <div className="bg-gradient-to-br from-slate-800/80 to-slate-700/80 rounded-lg p-3 border border-slate-600/30 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-slate-300 text-xs font-medium">Lisans</span>
+              <Shield className={`h-4 w-4 ${
+                isLicenseValid === true ? 'text-green-400' : 
+                isLicenseValid === false ? 'text-red-400' : 'text-yellow-400'
+              }`} />
             </div>
-            
-            {/* Hub Panel Başlığı */}
-            <div className="text-right flex items-center space-x-3">
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">Hub Panel</h1>
-                <p className="text-sm text-slate-600 font-medium mt-1">v1.3.0</p>
+            <div className="text-xs space-y-1">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Durum:</span>
+                <span className={`font-bold px-2 py-0.5 rounded text-xs ${
+                  isLicenseValid === true ? 'text-green-300 bg-green-900/30' : 
+                  isLicenseValid === false ? 'text-red-300 bg-red-900/30' : 'text-yellow-300 bg-yellow-900/30'
+                }`}>
+                  {isLicenseValid === true ? 'Geçerli' : 
+                   isLicenseValid === false ? 'Geçersiz' : 'Kontrol...'}
+                </span>
               </div>
-              <div className="flex items-center space-x-2">
-                <button 
+              {licenseExpiresAt && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Süre:</span>
+                  <span className="text-white font-bold text-xs">{timeRemaining}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Action Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* End of Day Process */}
+          <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/40 rounded-lg p-3 border border-purple-600/30 hover:border-purple-500/50 transition-all cursor-pointer group">
+            <div className="flex flex-col items-center text-center space-y-2">
+              <div className="p-2 bg-purple-800/30 rounded-full group-hover:bg-purple-700/40 transition-colors">
+                <Moon className="h-4 w-4 text-purple-300" />
+              </div>
+              <div>
+                <h3 className="text-white font-medium text-xs">Gün Sonu</h3>
+                <p className="text-purple-300 text-xs opacity-80">Günlük işlemler</p>
+              </div>
+              <div className="w-full space-y-1">
+                <Button 
+                  onClick={() => {
+                    if (window.electronAPI?.window?.showCustom) {
+                      window.electronAPI.window.showCustom();
+                    }
+                  }}
+                  size="sm"
+                  className="w-full bg-purple-600 hover:bg-purple-700 h-6 text-xs px-2"
+                >
+                  <FileText className="h-2.5 w-2.5 mr-1" />
+                  Rapor Al
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-purple-600/50 text-purple-300 hover:bg-purple-800/30 h-6 text-xs px-2"
+                >
+                  <BarChart3 className="h-2.5 w-2.5 mr-1" />
+                  İstatistikler
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Settings Process */}
+          <div className="bg-gradient-to-br from-blue-900/40 to-blue-800/40 rounded-lg p-3 border border-blue-600/30 hover:border-blue-500/50 transition-all cursor-pointer group">
+            <div className="flex flex-col items-center text-center space-y-2">
+              <div className="p-2 bg-blue-800/30 rounded-full group-hover:bg-blue-700/40 transition-colors">
+                <Settings className="h-4 w-4 text-blue-300" />
+              </div>
+              <div>
+                <h3 className="text-white font-medium text-xs">Ayarlar</h3>
+                <p className="text-blue-300 text-xs opacity-80">Sistem yapılandırması</p>
+              </div>
+              <div className="w-full space-y-1">
+                <Button 
                   onClick={() => {
                     if (window.electronAPI?.window?.showDealerSettings) {
                       window.electronAPI.window.showDealerSettings();
                     }
                   }}
-                  className="p-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 text-white"
-                  title="Bayi Ayarları"
+                  size="sm"
+                  className="w-full bg-blue-600 hover:bg-blue-700 h-6 text-xs px-2"
                 >
-                  <Key className="h-4 w-4" />
-                </button>
-                <button 
-                  onClick={checkForUpdates}
-                  className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 text-white"
-                  title="Güncelleme Kontrol Et"
+                  <Key className="h-2.5 w-2.5 mr-1" />
+                  Bayi Ayarları
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-blue-600/50 text-blue-300 hover:bg-blue-800/30 h-6 text-xs px-2"
                 >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Sistem Bilgileri Kartları */}
-          <div className="grid grid-cols-2 gap-3 mb-3 px-4">
-            {/* Sistem Durumu Kartı */}
-            <div className="bg-gradient-to-br from-white to-slate-50 rounded-xl shadow-lg border border-white/50 p-3 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-200/50">
-                <h3 className="text-sm font-bold text-slate-800">Sistem Durumu</h3>
-                <div className="p-1 bg-green-100 rounded-full">
-                  <Check className="h-4 w-4 text-green-600" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="text-slate-600 font-medium">CPU:</div>
-                <div className="text-slate-900 font-bold">15%</div>
-                <div className="text-slate-600 font-medium">RAM:</div>
-                <div className="text-slate-900 font-bold">45%</div>
-              </div>
-            </div>
-
-            {/* Lisans Durumu Kartı */}
-            <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-white/50 p-3 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-blue-200/50">
-                <h3 className="text-sm font-bold text-slate-800">Lisans</h3>
-                <div className="p-1 bg-blue-100 rounded-full">
-                  <Shield className="h-4 w-4 text-blue-600" />
-                </div>
-              </div>
-              <div className="text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-600 font-medium">Durum:</span>
-                  <span className={`font-bold px-2 py-1 rounded text-xs ${
-                    isLicenseValid === true ? 'text-green-700 bg-green-100' : 
-                    isLicenseValid === false ? 'text-red-700 bg-red-100' : 'text-yellow-700 bg-yellow-100'
-                  }`}>
-                    {isLicenseValid === true ? 'Geçerli' : 
-                     isLicenseValid === false ? 'Geçersiz' : 'Kontrol...'}
-                  </span>
-                </div>
-                {licenseExpiresAt && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600 font-medium">Süre:</span>
-                    <span className="text-slate-900 font-bold text-xs">{timeRemaining}</span>
-                  </div>
-                )}
+                  <Calendar className="h-2.5 w-2.5 mr-1" />
+                  Sistem Ayarları
+                </Button>
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      {/* Footer - Fixed Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 text-center p-2 z-10">
-        <div className="bg-gradient-to-r from-slate-100/90 to-blue-100/90 rounded-lg p-2 backdrop-blur-sm border border-white/30 shadow-lg mx-auto max-w-md">
-          <div className="text-sm text-slate-700">
-            <div className="font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent">
-              GAF Dijital Çözümler - info@gafdigi.com
-            </div>
+      {/* Footer */}
+      <div className="px-4 py-2 bg-gradient-to-r from-slate-800/30 to-slate-700/30 border-t border-slate-600/30">
+        <div className="text-center">
+          <div className="text-xs text-slate-400">
+            GAF Dijital Çözümler • v{version} • info@gafdigi.com
           </div>
         </div>
       </div>

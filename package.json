@@ -107,7 +107,7 @@
     "@tailwindcss/postcss": "^4.1.11",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^9.2.2",
+    "better-sqlite3": "^9.6.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -148,10 +148,9 @@
       "buildResources": "build"
     },
     "icon": "logo.png",
-
     "files": [
       "dist/main.js",
-      "dist/preload.js", 
+      "dist/preload.js",
       "dist/renderer.js",
       "dist/index.html",
       "dist/assets/**/*",

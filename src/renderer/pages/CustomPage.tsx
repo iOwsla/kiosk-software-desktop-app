@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOrderData } from '../hooks/useOrderData';
+import { X, RefreshCw, PrinterIcon, Lock, Eye, EyeOff, Clock, TrendingUp, CheckCircle, XCircle, AlertCircle, ArrowLeft, ShoppingCart, Delete, CreditCard, RotateCcw, History } from 'lucide-react';
+import gafYaziLogo from '../logotext.svg';
 
 interface Device {
   id: string;
@@ -157,70 +159,106 @@ const CustomPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-[440px] h-[650px] bg-gray-50 flex items-center justify-center">
+      <div className="w-[440px] h-[650px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-          <p className="text-gray-600 text-sm">Yükleniyor...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto mb-2"></div>
+          <p className="text-slate-300 text-sm">Yükleniyor...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-[440px] h-[600px] bg-gray-50 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="bg-white shadow-sm p-4 border-b">
-        <div className="flex justify-between items-center">
+    <div className="w-[440px] h-[650px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col overflow-hidden">
+      {/* Custom Title Bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-slate-800/50 to-slate-700/50 border-b border-slate-600/30 backdrop-blur-sm" style={{WebkitAppRegion: 'drag'} as React.CSSProperties}>
+        <div className="flex items-center space-x-3">
+          <div className="bg-white/10 rounded-lg p-1.5 backdrop-blur-sm">
+            <img 
+              src={gafYaziLogo} 
+              alt="GAF Logo" 
+              className="h-6 w-auto" 
+              style={{
+                imageRendering: 'crisp-edges',
+                WebkitImageRendering: 'crisp-edges',
+                filter: 'brightness(0) invert(1) drop-shadow(0 0 6px rgba(255,255,255,0.3))'
+              } as React.CSSProperties}
+            />
+          </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900">Gün Sonu Raporu</h1>
-            <p className="text-xs text-gray-600">{getCurrentDate()}</p>
+            <h1 className="text-white font-semibold text-sm">Gün Sonu Raporu</h1>
+            <p className="text-slate-400 text-xs">{getCurrentDate()}</p>
           </div>
+        </div>
+        <div className="flex items-center space-x-1" style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}>
+          <button
+            onClick={handleRefreshData}
+            className="p-1.5 hover:bg-slate-600/50 rounded-md transition-colors"
+            title="Yenile"
+          >
+            <RefreshCw className="h-3.5 w-3.5 text-white/70" />
+          </button>
+          <button 
+            onClick={() => {
+              if (window.electronAPI?.invoke) {
+                window.electronAPI.invoke('window:hide-custom');
+              } else {
+                window.close();
+              }
+            }}
+            className="p-1.5 hover:bg-red-600/50 rounded-md transition-colors"
+            title="Kapat"
+          >
+            <X className="h-3.5 w-3.5 text-white/70" />
+          </button>
+        </div>
+      </div>
+
+      {/* Header Info */}
+      <div className="px-4 py-3 bg-gradient-to-r from-slate-800/30 to-slate-700/30 border-b border-slate-600/30">
+        <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <button
-              onClick={handlePrintReport}
-              disabled={isPrinting}
-              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                isPrinting
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
-              }`}
-            >
-              {isPrinting ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                  <span>Yazdırılıyor...</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Rapor Al</span>
-                </div>
-              )}
-            </button>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Saat</p>
-              <p className="text-sm font-medium text-gray-900">{getCurrentTime()}</p>
-            </div>
+            <Clock className="h-4 w-4 text-slate-400" />
+            <span className="text-slate-300 text-sm font-medium">{getCurrentTime()}</span>
           </div>
+          <button
+            onClick={handlePrintReport}
+            disabled={isPrinting}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              isPrinting
+                ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+          >
+            {isPrinting ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                <span>Yazdırılıyor...</span>
+              </>
+            ) : (
+              <>
+                <PrinterIcon className="h-3 w-3" />
+                <span>Rapor Al</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Content Visibility Control */}
       {!isContentVisible && (
-        <div className="fixed inset-0 bg-white bg-opacity-95 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="text-center">
             <div className="mb-6">
-              <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-              <h2 className="text-xl font-semibold text-gray-700 mb-2">Gün Sonu Raporu</h2>
-               <p className="text-gray-500 mb-6">Bu raporu görüntülemek için PIN kodunuzu girin</p>
+              <div className="w-16 h-16 mx-auto mb-4 p-3 bg-slate-700/50 rounded-full">
+                <Lock className="w-full h-full text-slate-300" />
+              </div>
+              <h2 className="text-xl font-semibold text-white mb-2">Gün Sonu Raporu</h2>
+               <p className="text-slate-400 mb-6">Bu raporu görüntülemek için PIN kodunuzu girin</p>
             </div>
             <button
               onClick={handleViewContent}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
             >
               İçeriği Görüntüle
             </button>
@@ -230,11 +268,11 @@ const CustomPage: React.FC = () => {
 
       {/* PIN Modal */}
         {showPinModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-60 flex items-center justify-center">
+            <div className="bg-slate-800 border border-slate-600 rounded-lg p-6 w-96 max-w-md mx-4">
               <div className="text-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">PIN Kodu Girin</h3>
-                <p className="text-sm text-gray-600">6 haneli PIN kodunuzu girin</p>
+                <h3 className="text-lg font-semibold text-white mb-2">PIN Kodu Girin</h3>
+                <p className="text-sm text-slate-400">6 haneli PIN kodunuzu girin</p>
               </div>
               
               {/* PIN Display */}
@@ -245,18 +283,18 @@ const CustomPage: React.FC = () => {
                       key={index}
                       className={`w-10 h-10 border-2 rounded-lg flex items-center justify-center ${
                         index < pinInput.length
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-300 bg-gray-50'
+                          ? 'border-purple-500 bg-purple-500/20'
+                          : 'border-slate-600 bg-slate-700/50'
                       }`}
                     >
                       {index < pinInput.length && (
-                        <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                        <div className="w-3 h-3 bg-purple-400 rounded-full"></div>
                       )}
                     </div>
                   ))}
                 </div>
                 {pinError && (
-                  <p className="text-red-500 text-sm text-center">{pinError}</p>
+                  <p className="text-red-400 text-sm text-center">{pinError}</p>
                 )}
               </div>
               
@@ -271,7 +309,7 @@ const CustomPage: React.FC = () => {
                         setPinError('');
                       }
                     }}
-                    className="h-12 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-lg text-lg font-semibold text-gray-800 transition-colors"
+                    className="h-12 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 border border-slate-600 rounded-lg text-lg font-semibold text-white transition-colors"
                   >
                     {number}
                   </button>
@@ -288,7 +326,7 @@ const CustomPage: React.FC = () => {
                       setPinError('');
                     }
                   }}
-                  className="h-12 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-lg text-lg font-semibold text-gray-800 transition-colors"
+                  className="h-12 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 border border-slate-600 rounded-lg text-lg font-semibold text-white transition-colors"
                 >
                   0
                 </button>
@@ -299,11 +337,9 @@ const CustomPage: React.FC = () => {
                     setPinInput(prev => prev.slice(0, -1));
                     setPinError('');
                   }}
-                  className="h-12 bg-red-100 hover:bg-red-200 active:bg-red-300 rounded-lg flex items-center justify-center text-red-600 transition-colors"
+                  className="h-12 bg-red-700/50 hover:bg-red-600/50 active:bg-red-500/50 border border-red-600/50 rounded-lg flex items-center justify-center text-red-400 transition-colors"
                 >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6.707 4.879A3 3 0 018.828 4H15a3 3 0 013 3v6a3 3 0 01-3 3H8.828a3 3 0 01-2.12-.879l-4.415-4.414a1 1 0 010-1.414l4.414-4.414zm4 1.414L9.414 7.586a1 1 0 000 1.414L10.707 10.293a1 1 0 11-1.414 1.414L8 10.414l-1.293 1.293a1 1 0 01-1.414-1.414L6.586 9 5.293 7.707a1 1 0 011.414-1.414L8 7.586l1.293-1.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
+                  <Delete className="w-5 h-5" />
                 </button>
               </div>
               
@@ -315,7 +351,7 @@ const CustomPage: React.FC = () => {
                     setPinInput('');
                     setPinError('');
                   }}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                  className="flex-1 px-4 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors font-medium"
                 >
                   İptal
                 </button>
@@ -324,8 +360,8 @@ const CustomPage: React.FC = () => {
                   disabled={pinInput.length !== 6}
                   className={`flex-1 px-4 py-3 rounded-lg transition-colors font-medium ${
                     pinInput.length === 6
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                   }`}
                 >
                   Onayla
@@ -340,48 +376,54 @@ const CustomPage: React.FC = () => {
         {/* Grid Layout for Dashboard Cards */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {/* Order Statistics */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Sipariş İstatistikleri</h2>
+          <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg backdrop-blur-sm p-3">
+            <div className="flex items-center space-x-2 mb-3">
+              <ShoppingCart className="h-4 w-4 text-purple-400" />
+              <h2 className="text-sm font-semibold text-white">Sipariş İstatistikleri</h2>
+            </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-600">Toplam</span>
-                <span className="text-sm font-semibold text-gray-900">{orderStats.todayOrderCount}</span>
+                <span className="text-xs text-slate-400">Toplam</span>
+                <span className="text-sm font-semibold text-white">{orderStats.todayOrderCount}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-blue-600">Online</span>
-                <span className="text-sm font-semibold text-blue-600">{orderStats.onlineOrders}</span>
+                <span className="text-xs text-blue-400">Online</span>
+                <span className="text-sm font-semibold text-blue-400">{orderStats.onlineOrders}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-orange-600">Offline</span>
-                <span className="text-sm font-semibold text-orange-600">{orderStats.offlineOrders}</span>
+                <span className="text-xs text-orange-400">Offline</span>
+                <span className="text-sm font-semibold text-orange-400">{orderStats.offlineOrders}</span>
               </div>
             </div>
           </div>
 
           {/* Sync Status */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Senkronizasyon</h2>
+          <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg backdrop-blur-sm p-3">
+            <div className="flex items-center space-x-2 mb-3">
+              <RefreshCw className="h-4 w-4 text-purple-400" />
+              <h2 className="text-sm font-semibold text-white">Senkronizasyon</h2>
+            </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <div className="flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                  <span className="text-xs text-gray-600">Başarılı</span>
+                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                  <span className="text-xs text-slate-400">Başarılı</span>
                 </div>
-                <span className="text-sm font-semibold text-green-600">{orderStats.syncedOrders}</span>
+                <span className="text-sm font-semibold text-green-400">{orderStats.syncedOrders}</span>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
-                  <span className="text-xs text-gray-600">Bekleyen</span>
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2"></div>
+                  <span className="text-xs text-slate-400">Bekleyen</span>
                 </div>
-                <span className="text-sm font-semibold text-yellow-600">{orderStats.pendingSyncOrders}</span>
+                <span className="text-sm font-semibold text-yellow-400">{orderStats.pendingSyncOrders}</span>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center">
-                  <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-                  <span className="text-xs text-gray-600">Başarısız</span>
+                  <div className="w-2 h-2 bg-red-400 rounded-full mr-2"></div>
+                  <span className="text-xs text-slate-400">Başarısız</span>
                 </div>
-                <span className="text-sm font-semibold text-red-600">{orderStats.failedOrders}</span>
+                <span className="text-sm font-semibold text-red-400">{orderStats.failedOrders}</span>
               </div>
             </div>
           </div>
@@ -389,30 +431,33 @@ const CustomPage: React.FC = () => {
 
         {/* Payment Methods & Revenue - Full Width */}
         <div className="grid grid-cols-1 gap-3 mb-4">
-          <div className="bg-white rounded-lg shadow p-3">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Ödeme Yöntemleri & Günlük Ciro</h2>
+          <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg backdrop-blur-sm p-3">
+            <div className="flex items-center space-x-2 mb-3">
+              <CreditCard className="h-4 w-4 text-purple-400" />
+              <h2 className="text-sm font-semibold text-white">Ödeme Yöntemleri & Günlük Ciro</h2>
+            </div>
             <div className="space-y-2 mb-4">
               {paymentMethods.slice(0, 3).map((method) => (
                 <div key={method.type} className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <div className={`w-2 h-2 rounded-full ${
-                      method.type === 'cash' ? 'bg-green-500' :
-                      method.type === 'credit_card' ? 'bg-blue-500' :
-                      method.type === 'meal_card' ? 'bg-orange-500' :
-                      'bg-purple-500'
+                      method.type === 'cash' ? 'bg-green-400' :
+                      method.type === 'credit_card' ? 'bg-blue-400' :
+                      method.type === 'meal_card' ? 'bg-orange-400' :
+                      'bg-purple-400'
                     }`}></div>
-                    <span className="text-xs text-gray-600">{method.name.split(' ')[0]}</span>
+                    <span className="text-xs text-slate-400">{method.name.split(' ')[0]}</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-semibold text-gray-900">{formatPrice(method.amount)}</p>
+                    <p className="text-xs font-semibold text-white">{formatPrice(method.amount)}</p>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="border-t pt-3">
+            <div className="border-t border-slate-600/30 pt-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-gray-900">Toplam Ciro</span>
-                <span className="text-lg font-bold text-green-600">{formatPrice(orderStats.totalRevenue)}</span>
+                <span className="text-xs font-semibold text-white">Toplam Ciro</span>
+                <span className="text-lg font-bold text-green-400">{formatPrice(orderStats.totalRevenue)}</span>
               </div>
             </div>
           </div>
@@ -421,80 +466,73 @@ const CustomPage: React.FC = () => {
         {/* Order Status Grid - 3 Columns */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           {/* Approved Orders */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Onaylanan</h2>
+          <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg backdrop-blur-sm p-3">
+            <h2 className="text-sm font-semibold text-white mb-3">Onaylanan</h2>
             <div className="text-center">
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+              <div className="w-8 h-8 bg-green-400/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                <CheckCircle className="w-4 h-4 text-green-400" />
               </div>
-              <p className="text-xl font-bold text-green-600">{orderStats.todayOrderCount - (orderStats.failedOrders || 0)}</p>
-              <p className="text-xs text-gray-500">Sipariş</p>
+              <p className="text-xl font-bold text-green-400">{orderStats.todayOrderCount - (orderStats.failedOrders || 0)}</p>
+              <p className="text-xs text-slate-400">Sipariş</p>
             </div>
           </div>
 
           {/* Cancelled Orders */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">İptal Edilen</h2>
+          <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg backdrop-blur-sm p-3">
+            <h2 className="text-sm font-semibold text-white mb-3">İptal Edilen</h2>
             <div className="text-center">
-              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
+              <div className="w-8 h-8 bg-red-400/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                <XCircle className="w-4 h-4 text-red-400" />
               </div>
-              <p className="text-xl font-bold text-red-600">{orderStats.failedOrders || 0}</p>
-              <p className="text-xs text-gray-500">Sipariş</p>
+              <p className="text-xl font-bold text-red-400">{orderStats.failedOrders || 0}</p>
+              <p className="text-xs text-slate-400">Sipariş</p>
             </div>
           </div>
 
           {/* Refunded Orders */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">İade Edilen</h2>
+          <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg backdrop-blur-sm p-3">
+            <h2 className="text-sm font-semibold text-white mb-3">İade Edilen</h2>
             <div className="text-center">
-              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg className="w-4 h-4 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                </svg>
+              <div className="w-8 h-8 bg-orange-400/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                <RotateCcw className="w-4 h-4 text-orange-400" />
               </div>
-              <p className="text-xl font-bold text-orange-600">0</p>
-              <p className="text-xs text-gray-500">Sipariş</p>
+              <p className="text-xl font-bold text-orange-400">0</p>
+              <p className="text-xs text-slate-400">Sipariş</p>
             </div>
           </div>
         </div>
 
         {/* Recent Orders */}
-        <div className="bg-white rounded-lg shadow p-3">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Son Siparişler</h2>
+        <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg backdrop-blur-sm p-3">
+          <div className="flex items-center space-x-2 mb-3">
+            <History className="h-4 w-4 text-purple-400" />
+            <h2 className="text-sm font-semibold text-white">Son Siparişler</h2>
+          </div>
           <div className="space-y-2">
             {orderLoading ? (
               <div className="text-center py-4">
-                <p className="text-xs text-gray-500">Yükleniyor...</p>
+                <p className="text-xs text-slate-400">Yükleniyor...</p>
               </div>
             ) : recentOrders.length > 0 ? (
               recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                <div key={order.id} className="flex items-center justify-between py-2 border-b border-slate-600/30 last:border-b-0">
                   <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${order.status === 'online' ? 'bg-blue-500' : 'bg-orange-500'
+                    <div className={`w-2 h-2 rounded-full ${order.status === 'online' ? 'bg-blue-400' : 'bg-orange-400'
                       }`}></div>
                     <div>
-                      <p className="text-xs font-medium text-gray-900">{order.orderId}</p>
-                      <p className="text-xs text-gray-500">{order.time}</p>
+                      <p className="text-xs font-medium text-white">{order.orderId}</p>
+                      <p className="text-xs text-slate-400">{order.time}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-semibold text-gray-900">{formatPrice(order.amount)}</p>
+                    <p className="text-xs font-semibold text-white">{formatPrice(order.amount)}</p>
                     <div className="flex items-center space-x-1">
                       {order.synced ? (
-                        <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
+                        <CheckCircle className="w-3 h-3 text-green-400" />
                       ) : (
-                        <svg className="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                        </svg>
+                        <Clock className="w-3 h-3 text-yellow-400" />
                       )}
-                      <span className={`text-xs ${order.synced ? 'text-green-500' : 'text-yellow-500'
+                      <span className={`text-xs ${order.synced ? 'text-green-400' : 'text-yellow-400'
                         }`}>
                         {order.synced ? 'Başarılı' : 'Bekliyor'}
                       </span>
@@ -504,10 +542,10 @@ const CustomPage: React.FC = () => {
               ))
             ) : (
               <div className="text-center py-4">
-                <p className="text-xs text-gray-500">Henüz sipariş bulunmuyor</p>
+                <p className="text-xs text-slate-400">Henüz sipariş bulunmuyor</p>
                 <button 
                   onClick={handleRefreshData}
-                  className="mt-2 text-xs text-blue-600 hover:text-blue-800"
+                  className="mt-2 text-xs text-purple-400 hover:text-purple-300"
                 >
                   Yenile
                 </button>

@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } from 'electron';
 import { IPC_CHANNELS } from '../../shared/types';
 import { WindowManager } from './services/WindowManager';
 import { UpdateManager } from './services/UpdateManager';
 import { LicenseManager } from './services/LicenseManager';
 import { logger } from '../../api/utils/logger';
 import { APIServer } from '../../api/server';
+import * as os from 'os';
 
 // test
 
@@ -13,7 +14,11 @@ class KioskApp {
   private updateManager: UpdateManager;
   private licenseManager: LicenseManager;
   private apiServer: APIServer;
+  private tray: Tray | null = null;
+  private forceQuit: boolean = false;
   private isDev: boolean;
+  private cpuUsage: number = 0;
+  private memoryUsage: number = 0;
 
   constructor() {
     this.isDev = process.env.NODE_ENV === 'development';
@@ -24,6 +29,7 @@ class KioskApp {
     
     this.setupApp();
     this.setupIPC();
+    this.startSystemMonitoring();
   }
 
   private setupApp(): void {
@@ -33,7 +39,9 @@ class KioskApp {
     });
 
     app.on('window-all-closed', () => {
-      if (process.platform !== 'darwin') {
+      // Don't quit when all windows are closed, keep running in tray
+      // Only quit if explicitly requested or on macOS
+      if (process.platform === 'darwin') {
         this.shutdown();
       }
     });
@@ -62,6 +70,9 @@ class KioskApp {
       logger.info('✅ API Server started successfully on http://localhost:3001/api');
       console.log('🚀 API Server is running on port 3001 - http://localhost:3001/api');
       
+      // Initialize system tray
+      this.createSystemTray();
+      
       // Start auto update checking (every 60 minutes)
       this.updateManager.startAutoUpdateCheck(60);
 
@@ -77,6 +88,60 @@ class KioskApp {
     } catch (error) {
       logger.error('Failed to initialize application', { error });
       app.quit();
+    }
+  }
+
+  private createSystemTray(): void {
+    try {
+      // Create tray icon using the existing logo.ico or logo.png
+      const iconPath = this.isDev ? 'logo.png' : 'logo.ico';
+      this.tray = new Tray(nativeImage.createFromPath(iconPath));
+      
+      const contextMenu = Menu.buildFromTemplate([
+        {
+          label: 'Show Application',
+          click: () => {
+            this.windowManager.showKioskWindow();
+          }
+        },
+        {
+          label: 'Hide Application',
+          click: () => {
+            this.windowManager.hideAllWindows();
+          }
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: 'Settings',
+          click: () => {
+            this.windowManager.showDealerSettingsWindow();
+          }
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: 'Quit Application',
+          click: () => {
+            this.forceQuit = true;
+            this.shutdown();
+          }
+        }
+      ]);
+
+      this.tray.setContextMenu(contextMenu);
+      this.tray.setToolTip('Kiosk Application');
+      
+      // Double click to show/hide main window
+      this.tray.on('double-click', () => {
+        this.windowManager.showKioskWindow();
+      });
+
+      logger.info('System tray created successfully');
+    } catch (error) {
+      logger.error('Failed to create system tray', { error });
     }
   }
 
@@ -152,6 +217,16 @@ class KioskApp {
         return { success: true };
       } catch (error) {
         logger.error('IPC Hide dealer settings window failed', { error });
+        throw error;
+      }
+    });
+
+    ipcMain.handle('window:hide-kiosk', () => {
+      try {
+        this.windowManager.hideKioskWindow();
+        return { success: true };
+      } catch (error) {
+        logger.error('IPC Hide kiosk window failed', { error });
         throw error;
       }
     });
@@ -237,7 +312,62 @@ class KioskApp {
       }
     });
 
+    // System monitoring IPC handlers
+    ipcMain.handle('system:getStats', () => {
+      try {
+        return {
+          cpuUsage: this.cpuUsage,
+          memoryUsage: this.memoryUsage
+        };
+      } catch (error) {
+        logger.error('IPC Get system stats failed', { error });
+        throw error;
+      }
+    });
+  }
 
+  private startSystemMonitoring(): void {
+    // Initial measurement
+    this.updateSystemStats();
+    
+    // Update system stats every 5 seconds
+    setInterval(() => {
+      this.updateSystemStats();
+    }, 5000);
+  }
+
+  private getCPUUsage(): Promise<number> {
+    return new Promise((resolve) => {
+      const startMeasure = process.cpuUsage();
+      const startTime = process.hrtime();
+
+      setTimeout(() => {
+        const currentMeasure = process.cpuUsage(startMeasure);
+        const currentTime = process.hrtime(startTime);
+        
+        const totalTime = currentTime[0] * 1000000 + currentTime[1] / 1000; // Convert to microseconds
+        const totalUsage = currentMeasure.user + currentMeasure.system;
+        
+        const cpuPercent = Math.round((totalUsage / totalTime) * 100);
+        resolve(Math.min(100, Math.max(0, cpuPercent))); // Clamp between 0-100
+      }, 100);
+    });
+  }
+
+  private getMemoryUsage(): number {
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+    return Math.round((usedMemory / totalMemory) * 100);
+  }
+
+  private async updateSystemStats(): Promise<void> {
+    try {
+      this.cpuUsage = await this.getCPUUsage();
+      this.memoryUsage = this.getMemoryUsage();
+    } catch (error) {
+      logger.error('Failed to update system stats', { error });
+    }
   }
 
   private async shutdown(): Promise<void> {
@@ -250,6 +380,13 @@ class KioskApp {
       
       // Stop update manager
       this.updateManager.cleanup();
+      
+      // Clean up system tray
+      if (this.tray) {
+        this.tray.destroy();
+        this.tray = null;
+        logger.info('System tray cleaned up');
+      }
       
       // Close all windows
       this.windowManager.closeAllWindows();

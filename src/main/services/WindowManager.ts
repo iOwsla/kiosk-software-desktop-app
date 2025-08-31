@@ -26,7 +26,7 @@ export class WindowManager {
       center: true,
       fullscreen: false,
       kiosk: false,
-      frame: true,
+      frame: false,
       resizable: false,
       alwaysOnTop: false,
       skipTaskbar: false,
@@ -72,6 +72,13 @@ export class WindowManager {
       logger.info('Kiosk window shown');
     });
 
+    // Instead of closing, hide to tray
+    this.kioskWindow.on('close', (event) => {
+      event.preventDefault();
+      this.kioskWindow?.hide();
+      logger.info('Kiosk window hidden to tray');
+    });
+
     this.kioskWindow.on('closed', () => {
       this.kioskWindow = null;
     });
@@ -98,7 +105,8 @@ export class WindowManager {
       height: 650,
       center: true,
       resizable: false,
-      frame: true,
+      maximizable: false,
+      frame: false,
       alwaysOnTop: false,
       title: 'Günlük Veriler',
       icon: path.join(__dirname, '..', '..', 'renderer', 'gaf digi.svg'),
@@ -137,6 +145,15 @@ export class WindowManager {
       this.customWindow?.focus();
 
       logger.info('Custom window shown');
+    });
+
+    // Instead of closing, hide to tray
+    this.customWindow.on('close', (event) => {
+      console.log('Custom window close event triggered');
+      logger.info('Custom window close event triggered');
+      event.preventDefault();
+      this.customWindow?.hide();
+      logger.info('Custom window hidden to tray');
     });
 
     this.customWindow.on('closed', () => {
@@ -203,6 +220,15 @@ export class WindowManager {
       logger.info('Dealer settings window shown');
     });
 
+    // Instead of closing, hide to tray
+    this.dealerSettingsWindow.on('close', (event) => {
+      console.log('Dealer settings window close event triggered');
+      logger.info('Dealer settings window close event triggered');
+      event.preventDefault();
+      this.dealerSettingsWindow?.hide();
+      logger.info('Dealer settings window hidden to tray');
+    });
+
     this.dealerSettingsWindow.on('closed', () => {
       this.dealerSettingsWindow = null;
     });
@@ -212,6 +238,22 @@ export class WindowManager {
     if (this.dealerSettingsWindow) {
       this.dealerSettingsWindow.hide();
     }
+  }
+
+  public hideAllWindows(): void {
+    if (this.kioskWindow && this.kioskWindow.isVisible()) {
+      this.kioskWindow.hide();
+    }
+
+    if (this.customWindow && this.customWindow.isVisible()) {
+      this.customWindow.hide();
+    }
+
+    if (this.dealerSettingsWindow && this.dealerSettingsWindow.isVisible()) {
+      this.dealerSettingsWindow.hide();
+    }
+
+    logger.info('All windows hidden');
   }
 
   public closeAllWindows(): void {
