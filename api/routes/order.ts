@@ -1,67 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { createSuccessResponse, createErrorResponse, FAErrorCode, ErrorSeverity } from '../api';
-import { z } from 'zod';
 import baseApi from '../api';
 import { checkInternetConnection } from '../utils/networkUtils';
 import { OfflineOrderService } from '../services/OfflineOrderService';
 
 import { LicenseManager } from '@/main/services/LicenseManager';
-
-export const CreateOrderSchema = z.object({
-  sequence: z.string().max(10, 'Sıra numarası en fazla 10 karakter olabilir').optional(),
-  tableId: z.string().nullable().optional(),
-  dealerId: z.string().min(1, 'Bayi seçimi zorunludur'),
-  brandId: z.string().min(1, 'Marka seçimi zorunludur'),
-  deviceId: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
-  marketPlaceId: z.string().nullable().optional(),
-  marketPlace: z.string().nullable().optional(),
-  status: z.string().default('PENDING'),
-  type: z.string().default('KIOSK_DINE_IN'),
-  priority: z.number().int('Öncelik tam sayı olmalıdır').default(0),
-  estimatedTime: z.number().int('Tahmini süre tam sayı olmalıdır').default(15),
-  preparationStartTime: z.date().nullable().optional(),
-  preparationEndTime: z.date().nullable().optional(),
-  items: z.array(z.object({
-    productId: z.string().min(1, 'Ürün seçimi zorunludur'),
-    name: z.string().min(1, 'Ürün adı boş olamaz'),
-    status: z.string().default('DELIVERED'),
-    quantity: z.number().int('Adet tam sayı olmalıdır').min(1, 'Adet en az 1 olmalıdır'),
-    unitPrice: z.number().min(0, 'Birim fiyat 0\'dan büyük olmalıdır').default(0),
-    unitSubtotal: z.number().min(0, 'Birim maliyet fiyatı 0\'dan büyük olmalıdır').default(0),
-    totalPrice: z.number().min(0, 'Toplam fiyat 0\'dan büyük olmalıdır').default(0),
-    totalSubtotal: z.number().min(0, 'Toplam maliyet fiyatı 0\'dan büyük olmalıdır').default(0),
-    extrasTotal: z.number().default(0),
-    extrasSubtotal: z.number().default(0),
-    notes: z.string().nullable().optional(),
-    extras: z.array(z.object({
-      name: z.string().min(1, 'Ekstra adı boş olamaz'),
-      price: z.number().min(0, 'Ekstra fiyatı 0\'dan büyük olmalıdır'),
-      quantity: z.number().int('Ekstra adeti tam sayı olmalıdır').min(1, 'Ekstra adeti en az 1 olmalıdır'),
-      variantId: z.string().optional(),
-      variantItemId: z.string().optional(),
-      meta: z.object({
-        type: z.enum(['removal', 'free', 'paid']).optional(),
-        children: z.array(z.any()).optional()
-      }).optional()
-    })).nullable().optional()
-  })),
-  employeeId: z.string().nullable().optional(),
-  customerId: z.string().nullable().optional(),
-  campaignId: z.string().nullable().optional(),
-  discount: z.number().min(0, 'İndirim 0\'dan büyük olmalıdır').nullable().optional(),
-  totalAmount: z.number().min(0, 'Toplam tutar'),
-  extrasTotal: z.number().min(0, 'Ekstra ürünler toplamı'),
-  subtotal: z.number().min(0, 'Ara toplam 0\'dan büyük olmalıdır'),
-  extrasSubtotal: z.number().default(0),
-  tableNumber: z.string().nullable().optional(),
-  customerName: z.string().nullable().optional(),
-  customerPhone: z.string().nullable().optional(),
-  receiptImage: z.string().nullable().optional(),
-  completedAt: z.date().nullable().optional(),
-  paymentType: z.string().nullable().optional(),
-});
 
 const router = Router();
 
@@ -78,7 +22,7 @@ const offlineOrderService = OfflineOrderService.getInstance();
 
 router.post('/create', asyncHandler(async (req: Request, res: Response) => {
   try {
-    const payload = await CreateOrderSchema.parseAsync(req.body);
+    const payload = req.body;
 
     if (!payload.sequence) {
       payload.sequence = await offlineOrderService.generateOrderNumber(payload.brandId, payload.dealerId);
@@ -324,8 +268,5 @@ router.delete('/offline/cleanup', asyncHandler(async (req: Request, res: Respons
     );
   }
 }));
-
-// Günlük siparişleri getir (tüm siparişler - senkronize edilenler dahil)
-
 
 export { router as orderRouter };
